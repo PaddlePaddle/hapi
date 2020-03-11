@@ -17,15 +17,18 @@ from __future__ import absolute_import
 import inspect
 import os
 import pickle
-from collections import OrderedDict
-
 import numpy as np
 
+from collections import OrderedDict
 from paddle import fluid
 from paddle.fluid.framework import in_dygraph_mode, Variable
 from paddle.fluid.executor import global_scope
 from paddle.fluid.io import is_belong_to_optimizer
 from paddle.fluid.dygraph.base import to_variable
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
+import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+
+import distributed
 
 __all__ = ['shape_hints', 'Model', 'Loss', 'CrossEntropy']
 
@@ -123,6 +126,9 @@ class StaticGraphAdapter(object):
         self._compiled_progs = {}
 
         self._lazy_load_optimizer = None
+
+        self._nranks = distributed.Env().nranks
+        self._local_rank = distributed.Env().local_rank
 
         # parse shape hints
         self._input_desc = OrderedDict([
@@ -293,6 +299,7 @@ class StaticGraphAdapter(object):
             # HACK workaround learning rate map issue
             lr_var = self.model._optimizer._learning_rate_map[self._orig_prog]
             self.model._optimizer._learning_rate_map[prog] = lr_var
+                
         losses = []
         with fluid.program_guard(prog, self._startup_prog):
             outputs = to_list(self.model.forward(*inputs))
@@ -302,7 +309,16 @@ class StaticGraphAdapter(object):
                 losses = self.model._loss_function(outputs, label_vars)
                 if self.mode == 'train':
                     self._loss_endpoint = fluid.layers.sum(losses)
+                    if self._nranks > 1:
+                        role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+                        fleet.init(role)
+                        dist_strategy = DistributedStrategy()
+                        dist_strategy.mode = "collective"
+                        dist_strategy.collective_mode = "grad_allreduce"
+                        self.model._optimizer = fleet.distributed_optimizer(self.model._optimizer, strategy=dist_strategy)
+                        
                     self.model._optimizer.minimize(self._loss_endpoint)
+                    
         if self.mode != 'train':  # clone again to put it in test mode
             prog = prog.clone(for_test=True)
         self._progs[self.mode] = prog
@@ -346,7 +362,12 @@ class StaticGraphAdapter(object):
         # even if `forward()` may run different code path for different mode
         # therefore startup program only needs to run once
         if self._executor is None:
-            self._executor = fluid.Executor(places[0])
+            if self._nranks > 1 and device.lower() == 'gpu':
+                gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
+                place = fluid.CUDAPlace(gpu_id) if device.lower() == 'gpu' else fluid.CPUPlace()
+            else:
+                place = places[0]
+            self._executor = fluid.Executor(place)
             # XXX incremental initialization
             uninitialized = []
             for var_py in self._startup_prog.list_vars():
@@ -362,7 +383,10 @@ class StaticGraphAdapter(object):
                 self._load_optimizer(self._lazy_load_optimizer)
                 self._lazy_load_optimizer = None
 
-        compiled_prog = fluid.CompiledProgram(prog)
+        if self._nranks < 2:
+            compiled_prog = fluid.CompiledProgram(prog)
+        else:
+            compiled_prog = prog#fleet.main_program
         if len(device_ids) > 1:
             loss_name = None
             if self.mode == 'train' and self._loss_endpoint is not None:
@@ -389,6 +413,11 @@ class DynamicGraphAdapter(object):
     def __init__(self, model):
         super(DynamicGraphAdapter, self).__init__()
         self.model = model
+        self._nranks = distributed.Env().nranks
+        self._local_rank = distributed.Env().local_rank
+
+        if self._nranks > 1:
+            self.ddp_model = distributed.DistributedDataParallel(self.model)
 
     @property
     def mode(self):
@@ -406,10 +435,18 @@ class DynamicGraphAdapter(object):
         self.mode = 'train'
         inputs = to_list(inputs)
         labels = to_list(labels)
-        outputs = self.model.forward(*[to_variable(x) for x in inputs])
-        losses = self.model._loss_function(outputs, labels)
-        final_loss = fluid.layers.sum(losses)
-        final_loss.backward()
+        if self._nranks > 1:
+            outputs = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+            losses = self.model._loss_function(outputs, labels)
+            final_loss = fluid.layers.sum(losses)
+            final_loss = self.ddp_model.scale_loss(final_loss)
+            final_loss.backward()
+            self.ddp_model.apply_collective_grads()
+        else:
+            outputs = self.model.forward(*[to_variable(x) for x in inputs])
+            losses = self.model._loss_function(outputs, labels)
+            final_loss = fluid.layers.sum(losses)
+            final_loss.backward()
         self.model._optimizer.minimize(final_loss)
         self.model.clear_gradients()
         return [to_numpy(o) for o in to_list(outputs)], \
@@ -476,7 +513,8 @@ class Model(fluid.dygraph.Layer):
         return self._adapter.test(*args, **kwargs)
 
     def save(self, *args, **kwargs):
-        return self._adapter.save(*args, **kwargs)
+        if distributed.get_local_rank() == 0:
+            return self._adapter.save(*args, **kwargs)
 
     def load(self, *args, **kwargs):
         return self._adapter.load(*args, **kwargs)
