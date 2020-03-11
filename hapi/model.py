@@ -27,6 +27,8 @@ from paddle.fluid.executor import global_scope
 from paddle.fluid.io import is_belong_to_optimizer
 from paddle.fluid.dygraph.base import to_variable
 
+from .progressbar import ProgressBar
+
 __all__ = ['shape_hints', 'Model', 'Loss', 'CrossEntropy']
 
 
@@ -339,8 +341,10 @@ class StaticGraphAdapter(object):
         if compiled_prog is not None:
             return compiled_prog
 
-        places = [device.lower() == 'gpu' and fluid.CUDAPlace(i)
-                  or fluid.CPUPlace() for i in device_ids]
+        if device.lower() == 'gpu':
+            places = fluid.cuda_places(device_ids)
+        else:
+            places = fluid.cpu_places(len(device_ids) if device_ids else None)
 
         # XXX *ALL WEIGHTS* should be initialized upon model construction
         # even if `forward()` may run different code path for different mode
@@ -363,7 +367,8 @@ class StaticGraphAdapter(object):
                 self._lazy_load_optimizer = None
 
         compiled_prog = fluid.CompiledProgram(prog)
-        if len(device_ids) > 1:
+
+        if len(places) > 1:
             loss_name = None
             if self.mode == 'train' and self._loss_endpoint is not None:
                 loss_name = self._loss_endpoint.name
@@ -378,7 +383,7 @@ class StaticGraphAdapter(object):
                 del self._compiled_progs['eval']
 
             compiled_prog = compiled_prog.with_data_parallel(
-                loss_name=loss_name, places=places,
+                loss_name=loss_name,
                 share_vars_from=share_vars_from)
 
         self._compiled_progs[self.mode] = compiled_prog
@@ -474,6 +479,46 @@ class Model(fluid.dygraph.Layer):
 
     def test(self, *args, **kwargs):
         return self._adapter.test(*args, **kwargs)
+
+    def fit(self,
+            train_iterator=None,
+            eval_iterator=None,
+            eval_freq=1,
+            epochs=1,
+            device=None,
+            log_step=10,
+            save_freq=10,
+            save_filepath='output',
+            verbose=2,
+            ):
+        if device is None:
+            device = 'GPU' if fluid.is_compiled_with_cuda() else 'CPU'
+        do_eval = eval_iterator is not None
+        ## FIXME: get steps from train_iterator after DataLoader is completed
+        progbar = ProgressBar(num=None)
+        for epoch in range(epochs):
+            print("Epoch %d/%d" % (epoch, epochs))
+            logs = []
+            for step, data in enumerate(train_iterator):
+                inputs, labels = data[0], data[1]
+                outs, loss = self.train(inputs, labels, device)
+                logs = [('loss', np.sum(loss))]
+                if verbose and step % log_step == 0:
+                    progbar.update(step, logs)
+            progbar.update(step, logs)
+           
+            if do_eval and epoch % eval_freq == 0:
+                ## FIXME: update when DataLoader is completed
+                print("Eval %d/%d" % (epoch, epochs))
+                eval_progbar = ProgressBar(num=None)
+                logs = []
+                for step, data in enumerate(eval_iterator):
+                    inputs, labels = data[0], data[1]
+                    outs, loss = self.eval(inputs, labels, device)
+                    logs = [('loss ', np.sum(loss))]
+                    if verbose and step % log_step == 0:
+                        progbar.update(step, logs)
+                eval_progbar.update(step, logs)
 
     def save(self, *args, **kwargs):
         return self._adapter.save(*args, **kwargs)

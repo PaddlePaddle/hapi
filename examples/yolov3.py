@@ -33,7 +33,7 @@ from paddle.fluid.dygraph.nn import Conv2D
 from paddle.fluid.param_attr import ParamAttr
 from paddle.fluid.regularizer import L2Decay
 
-from model import Model, Loss, shape_hints
+from hapi.model import Model, Loss, shape_hints
 from resnet import ResNet, ConvBNLayer
 
 

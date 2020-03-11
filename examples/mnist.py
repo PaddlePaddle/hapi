@@ -26,7 +26,7 @@ from paddle import fluid
 from paddle.fluid.optimizer import Momentum
 from paddle.fluid.dygraph.nn import Conv2D, Pool2D, Linear
 
-from model import Model, CrossEntropy
+from hapi.model import Model, CrossEntropy
 
 
 class SimpleImgConvPool(fluid.dygraph.Layer):
