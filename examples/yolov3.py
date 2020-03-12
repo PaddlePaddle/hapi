@@ -105,8 +105,10 @@ class YOLOv3(Model):
     def __init__(self):
         super(YOLOv3, self).__init__()
         self.num_classes = 80
-        self.anchors = [10, 13, 16, 30, 33, 23, 30, 61, 62, 45,
-                        59, 119, 116, 90, 156, 198, 373, 326]
+        self.anchors = [
+            10, 13, 16, 30, 33, 23, 30, 61, 62, 45, 59, 119, 116, 90, 156, 198,
+            373, 326
+        ]
         self.anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
         self.valid_thresh = 0.005
         self.nms_topk = 400
@@ -121,29 +123,32 @@ class YOLOv3(Model):
         for idx, num_chan in enumerate([2048, 1280, 640]):
             yolo_block = self.add_sublayer(
                 "detecton_block_{}".format(idx),
-                YoloDetectionBlock(num_chan, num_filters=512 // (2**idx)))
+                YoloDetectionBlock(
+                    num_chan, num_filters=512 // (2**idx)))
             self.yolo_blocks.append(yolo_block)
 
             num_filters = len(self.anchor_masks[idx]) * (self.num_classes + 5)
 
             block_out = self.add_sublayer(
                 "block_out_{}".format(idx),
-                Conv2D(num_channels=1024 // (2**idx),
-                       num_filters=num_filters,
-                       filter_size=1,
-                       param_attr=ParamAttr(
-                           initializer=fluid.initializer.Normal(0., 0.02)),
-                       bias_attr=ParamAttr(
-                           initializer=fluid.initializer.Constant(0.0),
-                           regularizer=L2Decay(0.))))
+                Conv2D(
+                    num_channels=1024 // (2**idx),
+                    num_filters=num_filters,
+                    filter_size=1,
+                    param_attr=ParamAttr(
+                        initializer=fluid.initializer.Normal(0., 0.02)),
+                    bias_attr=ParamAttr(
+                        initializer=fluid.initializer.Constant(0.0),
+                        regularizer=L2Decay(0.))))
             self.block_outputs.append(block_out)
             if idx < 2:
                 route = self.add_sublayer(
                     "route_{}".format(idx),
-                    ConvBNLayer(num_channels=512 // (2**idx),
-                                num_filters=256 // (2**idx),
-                                filter_size=1,
-                                act='leaky_relu'))
+                    ConvBNLayer(
+                        num_channels=512 // (2**idx),
+                        num_filters=256 // (2**idx),
+                        filter_size=1,
+                        act='leaky_relu'))
                 self.route_blocks.append(route)
 
     @shape_hints(inputs=[None, 3, None, None], im_shape=[None, 2])
@@ -189,8 +194,10 @@ class YOLOv3(Model):
             return outputs
 
         return fluid.layers.multiclass_nms(
-            bboxes=fluid.layers.concat(boxes, axis=1),
-            scores=fluid.layers.concat(scores, axis=2),
+            bboxes=fluid.layers.concat(
+                boxes, axis=1),
+            scores=fluid.layers.concat(
+                scores, axis=2),
             score_threshold=self.valid_thresh,
             nms_top_k=self.nms_topk,
             keep_top_k=self.nms_posk,
@@ -204,8 +211,10 @@ class YoloLoss(Loss):
         self.num_classes = num_classes
         self.num_max_boxes = num_max_boxes
         self.ignore_thresh = 0.7
-        self.anchors = [10, 13, 16, 30, 33, 23, 30, 61, 62, 45,
-                        59, 119, 116, 90, 156, 198, 373, 326]
+        self.anchors = [
+            10, 13, 16, 30, 33, 23, 30, 61, 62, 45, 59, 119, 116, 90, 156, 198,
+            373, 326
+        ]
         self.anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 
     def forward(self, outputs, labels):
@@ -231,11 +240,8 @@ class YoloLoss(Loss):
         return losses
 
     def infer_shape(self, _):
-        return [
-            [None, self.num_max_boxes, 4],
-            [None, self.num_max_boxes],
-            [None, self.num_max_boxes]
-        ]
+        return [[None, self.num_max_boxes, 4], [None, self.num_max_boxes],
+                [None, self.num_max_boxes]]
 
     def infer_dtype(self, _):
         return ['float32', 'int32', 'float32']
@@ -247,10 +253,9 @@ def make_optimizer(parameter_list=None):
     momentum = 0.9
     weight_decay = 5e-4
     boundaries = [400000, 450000]
-    values = [base_lr * (0.1 ** i) for i in range(len(boundaries) + 1)]
+    values = [base_lr * (0.1**i) for i in range(len(boundaries) + 1)]
     learning_rate = fluid.layers.piecewise_decay(
-        boundaries=boundaries,
-        values=values)
+        boundaries=boundaries, values=values)
     learning_rate = fluid.layers.linear_lr_warmup(
         learning_rate=learning_rate,
         warmup_steps=warm_up_iter,
@@ -281,8 +286,7 @@ def _crop_box_with_center_constraint(box, crop):
     cropped_box[:, :2] -= crop[:2]
     cropped_box[:, 2:] -= crop[:2]
     centers = (box[:, :2] + box[:, 2:]) / 2
-    valid = np.logical_and(
-        crop[:2] <= centers, centers < crop[2:]).all(axis=1)
+    valid = np.logical_and(crop[:2] <= centers, centers < crop[2:]).all(axis=1)
     valid = np.logical_and(
         valid, (cropped_box[:, :2] < cropped_box[:, 2:]).all(axis=1))
     return cropped_box, np.where(valid)[0]
@@ -305,8 +309,8 @@ def random_crop(inputs):
         for i in range(50):
             scale = np.random.uniform(*scaling)
             min_ar, max_ar = aspect_ratios
-            ar = np.random.uniform(max(min_ar, scale**2),
-                                   min(max_ar, scale**-2))
+            ar = np.random.uniform(
+                max(min_ar, scale**2), min(max_ar, scale**-2))
             crop_h = int(h * scale / np.sqrt(ar))
             crop_w = int(w * scale * np.sqrt(ar))
             crop_y = np.random.randint(0, h - crop_h)
@@ -317,7 +321,8 @@ def random_crop(inputs):
                 continue
 
             cropped_box, valid_ids = _crop_box_with_center_constraint(
-                gt_box, np.array(crop_box, dtype=np.float32))
+                gt_box, np.array(
+                    crop_box, dtype=np.float32))
             if valid_ids.size > 0:
                 found = True
                 break
@@ -377,8 +382,9 @@ def batch_transform(batch, mode='train'):
         interp = cv2.INTER_CUBIC
     # transpose batch
     imgs, gt_boxes, gt_labels = list(zip(*batch))
-    imgs = np.array([cv2.resize(
-        img, (d, d), interpolation=interp) for img in imgs])
+    imgs = np.array(
+        [cv2.resize(
+            img, (d, d), interpolation=interp) for img in imgs])
 
     # transpose, permute and normalize
     imgs = imgs.astype(np.float32)[..., ::-1]
@@ -398,8 +404,8 @@ def batch_transform(batch, mode='train'):
 
 
 def coco2017(root_dir, mode='train'):
-    json_path = os.path.join(
-        root_dir, 'annotations/instances_{}2017.json'.format(mode))
+    json_path = os.path.join(root_dir,
+                             'annotations/instances_{}2017.json'.format(mode))
     coco = COCO(json_path)
     img_ids = coco.getImgIds()
     imgs = coco.loadImgs(img_ids)
@@ -407,8 +413,8 @@ def coco2017(root_dir, mode='train'):
     samples = []
 
     for img in imgs:
-        img_path = os.path.join(
-            root_dir, '{}2017'.format(mode), img['file_name'])
+        img_path = os.path.join(root_dir, '{}2017'.format(mode),
+                                img['file_name'])
         file_path = img_path
         width = img['width']
         height = img['height']
@@ -432,8 +438,9 @@ def coco2017(root_dir, mode='train'):
             gt_box.append([x1, y1, x2, y2])
 
         gt_box = np.array(gt_box, dtype=np.float32)
-        gt_label = np.array([class_map[cls] for cls in gt_label],
-                            dtype=np.int32)[:, np.newaxis]
+        gt_label = np.array(
+            [class_map[cls] for cls in gt_label],
+            dtype=np.int32)[:, np.newaxis]
 
         if gt_label.size == 0 and not mode == 'train':
             continue
@@ -457,8 +464,10 @@ def run(model, loader, mode='train'):
     start = time.time()
 
     for idx, batch in enumerate(loader()):
-        outputs, losses = getattr(model, mode)(
-            batch[0], batch[1], device='gpu', device_ids=device_ids)
+        outputs, losses = getattr(model, mode)(batch[0],
+                                               batch[1],
+                                               device='gpu',
+                                               device_ids=device_ids)
 
         total_loss += np.sum(losses)
         if idx > 1:  # skip first two steps
@@ -488,7 +497,8 @@ def main():
                 buffer_size=4 * batch_size),
             batch_size=batch_size,
             drop_last=True),
-        process_num=2, buffer_size=4)
+        process_num=2,
+        buffer_size=4)
 
     val_sample_transform = partial(sample_transform, mode='val')
     val_batch_transform = partial(batch_transform, mode='val')
@@ -502,7 +512,8 @@ def main():
                 process_num=8,
                 buffer_size=4 * batch_size),
             batch_size=batch_size),
-        process_num=2, buffer_size=4)
+        process_num=2,
+        buffer_size=4)
 
     if not os.path.exists('yolo_checkpoints'):
         os.mkdir('yolo_checkpoints')
@@ -531,14 +542,21 @@ if __name__ == '__main__':
     parser.add_argument(
         "-e", "--epoch", default=300, type=int, help="number of epoch")
     parser.add_argument(
-        '--lr', '--learning-rate', default=0.001, type=float, metavar='LR',
+        '--lr',
+        '--learning-rate',
+        default=0.001,
+        type=float,
+        metavar='LR',
         help='initial learning rate')
     parser.add_argument(
         "-b", "--batch_size", default=64, type=int, help="batch size")
     parser.add_argument(
         "-n", "--num_devices", default=8, type=int, help="number of devices")
     parser.add_argument(
-        "-w", "--weights", default=None, type=str,
+        "-w",
+        "--weights",
+        default=None,
+        type=str,
         help="path to pretrained weights")
     FLAGS = parser.parse_args()
     assert FLAGS.data, "error: must provide data path"

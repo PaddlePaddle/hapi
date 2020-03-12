@@ -64,11 +64,7 @@ class ConvBNLayer(fluid.dygraph.Layer):
 
 
 class BottleneckBlock(fluid.dygraph.Layer):
-    def __init__(self,
-                 num_channels,
-                 num_filters,
-                 stride,
-                 shortcut=True):
+    def __init__(self, num_channels, num_filters, stride, shortcut=True):
         super(BottleneckBlock, self).__init__()
 
         self.conv0 = ConvBNLayer(
@@ -139,10 +135,7 @@ class ResNet(Model):
             stride=2,
             act='relu')
         self.pool = Pool2D(
-            pool_size=3,
-            pool_stride=2,
-            pool_padding=1,
-            pool_type='max')
+            pool_size=3, pool_stride=2, pool_padding=1, pool_type='max')
 
         self.layers = []
         for idx, num_blocks in enumerate(layers):
@@ -156,9 +149,8 @@ class ResNet(Model):
                     shortcut=shortcut)
                 blocks.append(block)
                 shortcut = True
-            layer = self.add_sublayer(
-                "layer_{}".format(idx),
-                Sequential(*blocks))
+            layer = self.add_sublayer("layer_{}".format(idx),
+                                      Sequential(*blocks))
             self.layers.append(layer)
 
         self.global_pool = Pool2D(
@@ -166,12 +158,12 @@ class ResNet(Model):
 
         stdv = 1.0 / math.sqrt(2048 * 1.0)
         self.fc_input_dim = num_out[-1] * 4 * 1 * 1
-        self.fc = Linear(self.fc_input_dim,
-                         num_classes,
-                         act='softmax',
-                         param_attr=fluid.param_attr.ParamAttr(
-                             initializer=fluid.initializer.Uniform(
-                                 -stdv, stdv)))
+        self.fc = Linear(
+            self.fc_input_dim,
+            num_classes,
+            act='softmax',
+            param_attr=fluid.param_attr.ParamAttr(
+                initializer=fluid.initializer.Uniform(-stdv, stdv)))
 
     def forward(self, inputs):
         x = self.conv(inputs)
@@ -225,7 +217,7 @@ def center_crop_resize(img):
     c = int(224 / 256 * min((h, w)))
     i = (h + 1 - c) // 2
     j = (w + 1 - c) // 2
-    img = img[i: i + c, j: j + c, :]
+    img = img[i:i + c, j:j + c, :]
     return cv2.resize(img, (224, 224), 0, 0, cv2.INTER_LINEAR)
 
 
@@ -244,7 +236,7 @@ def random_crop_resize(img):
         if w <= width and h <= height:
             i = random.randint(0, height - h)
             j = random.randint(0, width - w)
-            img = img[i: i + h, j: j + w, :]
+            img = img[i:i + h, j:j + w, :]
             return cv2.resize(img, (224, 224), 0, 0, cv2.INTER_LINEAR)
 
     return center_crop_resize(img)
@@ -271,13 +263,15 @@ def compose(functions):
         for fn in functions:
             img = fn(img)
         return img, label
+
     return process
 
 
 def image_folder(path, shuffle=False):
     valid_ext = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.webp')
-    classes = [d for d in os.listdir(path) if
-               os.path.isdir(os.path.join(path, d))]
+    classes = [
+        d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))
+    ]
     classes.sort()
     class_map = {cls: idx for idx, cls in enumerate(classes)}
     samples = []
@@ -308,8 +302,10 @@ def run(model, loader, mode='train'):
     start = time.time()
 
     for idx, batch in enumerate(loader()):
-        outputs, losses = getattr(model, mode)(
-            batch[0], batch[1], device='gpu', device_ids=device_ids)
+        outputs, losses = getattr(model, mode)(batch[0],
+                                               batch[1],
+                                               device='gpu',
+                                               device_ids=device_ids)
         top1, top5 = accuracy(outputs[0], batch[1], topk=(1, 5))
 
         total_loss += np.sum(losses)
@@ -319,9 +315,9 @@ def run(model, loader, mode='train'):
             total_time += time.time() - start
         if idx % 10 == 0:
             print(("{:04d} loss: {:0.3f} top1: {:0.3f}% top5: {:0.3f}% "
-                   "time: {:0.3f}").format(
-                       idx, total_loss / (idx + 1), total_acc1 / (idx + 1),
-                       total_acc5 / (idx + 1), total_time / max(1, (idx - 1))))
+                   "time: {:0.3f}").format(idx, total_loss / (
+                       idx + 1), total_acc1 / (idx + 1), total_acc5 / (
+                           idx + 1), total_time / max(1, (idx - 1))))
         start = time.time()
 
 
@@ -383,21 +379,31 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Resnet Training on ImageNet")
-    parser.add_argument('data', metavar='DIR', help='path to dataset '
-                        '(should have subdirectories named "train" and "val"')
+    parser.add_argument(
+        'data',
+        metavar='DIR',
+        help='path to dataset '
+        '(should have subdirectories named "train" and "val"')
     parser.add_argument(
         "-d", "--dynamic", action='store_true', help="enable dygraph mode")
     parser.add_argument(
         "-e", "--epoch", default=90, type=int, help="number of epoch")
     parser.add_argument(
-        '--lr', '--learning-rate', default=0.1, type=float, metavar='LR',
+        '--lr',
+        '--learning-rate',
+        default=0.1,
+        type=float,
+        metavar='LR',
         help='initial learning rate')
     parser.add_argument(
         "-b", "--batch_size", default=256, type=int, help="batch size")
     parser.add_argument(
         "-n", "--num_devices", default=4, type=int, help="number of devices")
     parser.add_argument(
-        "-r", "--resume", default=None, type=str,
+        "-r",
+        "--resume",
+        default=None,
+        type=str,
         help="checkpoint path to resume")
     FLAGS = parser.parse_args()
     assert FLAGS.data, "error: must provide data path"

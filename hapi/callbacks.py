@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import abc
 import six
 import copy
 
-from progressbar import ProgressBar
+from .progressbar import ProgressBar
 
 
 def config_callbacks(callbacks=None,
@@ -115,7 +114,6 @@ class CallbackList(object):
         self._call('on_test_batch_end', step, logs)
 
 
-@six.add_metaclass(abc.ABCMeta)
 class Callback(object):
     def __init__(self):
         self.model = None

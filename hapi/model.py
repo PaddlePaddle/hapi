@@ -27,7 +27,7 @@ from paddle.fluid.executor import global_scope
 from paddle.fluid.io import is_belong_to_optimizer
 from paddle.fluid.dygraph.base import to_variable
 
-from callbacks import config_callbacks
+from .callbacks import config_callbacks
 
 __all__ = ['Model', 'Loss', 'CrossEntropy', 'Input']
 
@@ -139,68 +139,6 @@ class StaticGraphAdapter(object):
             self._make_program(input_vars)
         compiled_prog = self._compile_and_initialize(self._progs[mode], device)
         return compiled_prog
-
-    def fit(
-            self,
-            train_iterator=None,
-            eval_iterator=None,
-            eval_freq=1,
-            epochs=1,
-            device=None,
-            verbose=2,
-            callbacks=None, ):
-
-        self._compile('train', device)
-        do_eval = eval_iterator is not None
-        if do_eval:
-            self._compile('eval', device)
-
-        cbks = config_callbacks(
-            model=self,
-            epochs=epochs,
-            steps=None,
-            verbose=verbose,
-            metrics=['loss'],  # FIXME: more general
-        )
-
-        cbks.on_train_begin()
-        train_logs = {}
-        for epoch in range(epochs):
-            cbks.on_epoch_begin(epoch)
-            for step, data in enumerate(train_iterator):
-                cbks.on_train_batch_begin(step)
-
-                if not self.model._loss:
-                    inputs, labels = data[0], data[1]
-                else:
-                    inputs, labels = data, None
-                outs, loss = self.train(inputs, labels, device)
-                train_logs['loss'] = np.sum(loss)
-                cbks.on_train_batch_end(step, train_logs)
-            cbks.on_epoch_end(epoch, train_logs)
-
-            if do_eval and epoch % eval_freq == 0:
-                params = {
-                    'eval_steps': None,
-                    'eval_metrics': ['eval_loss'],
-                    'log_freq': 10
-                }
-                eval_logs = {}
-                cbks.on_eval_begin(params)
-                for step, data in enumerate(eval_iterator):
-                    cbks.on_eval_batch_begin(step)
-
-                    if not self.model._loss:
-                        inputs, labels = data[0], data[1]
-                    else:
-                        inputs, labels = data, None
-                    outs, loss = self.eval(inputs, labels, device)
-
-                    eval_logs['eval_loss'] = np.sum(loss)
-                    eval_logs['batch_size'] = inputs.shape[0]
-                    cbks.on_eval_batch_end(step, eval_logs)
-                cbks.on_eval_end(eval_logs)
-        cbks.on_train_end(eval_logs)
 
     def parameters(self, *args, **kwargs):
         return None
@@ -481,63 +419,6 @@ class DynamicGraphAdapter(object):
         outputs = self.model.forward(*inputs)
         return [to_numpy(o) for o in to_list(outputs)]
 
-    def fit(
-            self,
-            train_iterator=None,
-            eval_iterator=None,
-            eval_freq=1,
-            epochs=1,
-            device=None,
-            verbose=2,
-            callbacks=None, ):
-        do_eval = eval_iterator is not None
-        cbks = config_callbacks(
-            model=self,
-            epochs=epochs,
-            steps=None,
-            verbose=verbose,
-            metrics=['loss'],  # FIXME: more general
-        )
-
-        cbks.on_train_begin()
-        train_logs = {}
-        for epoch in range(epochs):
-            cbks.on_epoch_begin(epoch)
-            for step, data in enumerate(train_iterator):
-                cbks.on_train_batch_begin(step)
-
-                if not self.model._loss:
-                    inputs, labels = data[0], data[1]
-                else:
-                    inputs, labels = data, None
-                outs, loss = self.train(inputs, labels, device)
-                train_logs['loss'] = np.sum(loss)
-                cbks.on_train_batch_end(step, train_logs)
-            cbks.on_epoch_end(epoch, train_logs)
-
-            if do_eval and epoch % eval_freq == 0:
-                params = {
-                    'eval_steps': None,
-                    'eval_metrics': ['eval_loss'],
-                    'log_freq': 10
-                }
-                eval_logs = {}
-                cbks.on_eval_begin(params)
-                for step, data in enumerate(eval_iterator):
-                    cbks.on_eval_batch_begin(step)
-
-                    if not self.model._loss:
-                        inputs, labels = data[0], data[1]
-                    else:
-                        inputs, labels = data, None
-                    outs, loss = self.eval(inputs, labels, device)
-
-                    eval_logs['eval_loss'] = np.sum(loss)
-                    eval_logs['batch_size'] = inputs.shape[0]
-                    cbks.on_eval_batch_end(step, eval_logs)
-                cbks.on_eval_end(eval_logs)
-        cbks.on_train_end(eval_logs)
-
     def _get_loss(self, outputs, labels):
         if self.model._loss_function and self.model._loss:
             raise ValueError(
@@ -613,12 +494,56 @@ class Model(fluid.dygraph.Layer):
             eval_freq=1,
             epochs=1,
             device=None,
-            verbose=1,
+            verbose=2,
             callbacks=None, ):
         if device is None:
             device = 'GPU' if fluid.is_compiled_with_cuda() else 'CPU'
-        return self._adapter.fit(train_iterator, eval_iterator, eval_freq,
-                                 epochs, device, verbose, callbacks)
+        do_eval = eval_iterator is not None
+        cbks = config_callbacks(
+            model=self,
+            epochs=epochs,
+            steps=None,
+            verbose=verbose,
+            metrics=['loss'],  # FIXME: more general
+        )
+
+        cbks.on_train_begin()
+        train_logs = {}
+        for epoch in range(epochs):
+            cbks.on_epoch_begin(epoch)
+            for step, data in enumerate(train_iterator):
+                cbks.on_train_batch_begin(step)
+                if not self._loss:
+                    inputs, labels = data[0], data[1]
+                else:
+                    inputs, labels = data, None
+                outs, loss = self.train(inputs, labels, device)
+                train_logs['loss'] = np.sum(loss)
+                cbks.on_train_batch_end(step, train_logs)
+            cbks.on_epoch_end(epoch, train_logs)
+
+            if do_eval and epoch % eval_freq == 0:
+                params = {
+                    'eval_steps': None,
+                    'eval_metrics': ['eval_loss'],
+                    'log_freq': 10
+                }
+                eval_logs = {}
+                cbks.on_eval_begin(params)
+                for step, data in enumerate(eval_iterator):
+                    cbks.on_eval_batch_begin(step)
+
+                    if not self._loss:
+                        inputs, labels = data[0], data[1]
+                    else:
+                        inputs, labels = data, None
+                    outs, loss = self.eval(inputs, labels, device)
+
+                    eval_logs['eval_loss'] = np.sum(loss)
+                    eval_logs['batch_size'] = inputs.shape[0]
+                    cbks.on_eval_batch_end(step, eval_logs)
+                cbks.on_eval_end(eval_logs)
+        cbks.on_train_end(eval_logs)
 
     def save(self, *args, **kwargs):
         return self._adapter.save(*args, **kwargs)

@@ -24,7 +24,7 @@ import contextlib
 import paddle
 from paddle import fluid
 from paddle.fluid.dygraph.nn import Conv2D, Pool2D, Linear
-from model import Model, CrossEntropy, Input
+from hapi.model import Model, CrossEntropy, Input
 
 
 class SimpleImgConvPool(fluid.dygraph.Layer):
