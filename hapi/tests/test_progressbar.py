@@ -20,7 +20,6 @@ from hapi.progressbar import ProgressBar
 
 
 class TestProgressBar(unittest.TestCase):
-
     def prog_bar(self, num, loop_num, width):
         progbar = ProgressBar(num)
         values = [
@@ -32,7 +31,7 @@ class TestProgressBar(unittest.TestCase):
             values[1][1] += random.random() * 0.1
             if i % 10 == 0 or i == loop_num - 1:
                 progbar.update(i, values)
-            time.sleep(0.01)
+            time.sleep(0.02)
 
     def test1(self):
         self.prog_bar(100, 100, 30)
@@ -40,8 +39,9 @@ class TestProgressBar(unittest.TestCase):
     def test2(self):
         self.prog_bar(50, 100, 30)
 
-    def test2(self):
+    def test3(self):
         self.prog_bar(None, 50, 30)
+
 
 if __name__ == '__main__':
     unittest.main()

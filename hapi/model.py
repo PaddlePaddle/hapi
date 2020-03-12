@@ -66,6 +66,7 @@ def shape_hints(**hints):
             + ": ({})".format(", ".join(invalid))
         func.shape_hints = hints
         return func
+
     return wrapper
 
 
@@ -104,8 +105,9 @@ class CrossEntropy(Loss):
         return ['int64' for _ in outputs]
 
     def forward(self, outputs, labels):
-        return [fluid.layers.cross_entropy(o, l) for o, l in zip(
-            outputs, labels)]
+        return [
+            fluid.layers.cross_entropy(o, l) for o, l in zip(outputs, labels)
+        ]
 
 
 class StaticGraphAdapter(object):
@@ -127,9 +129,9 @@ class StaticGraphAdapter(object):
         self._lazy_load_optimizer = None
 
         # parse shape hints
-        self._input_desc = OrderedDict([
-            (n, None) for n in extract_args(self.model.forward) if n != 'self'
-        ])
+        self._input_desc = OrderedDict(
+            [(n, None) for n in extract_args(self.model.forward)
+             if n != 'self'])
         if hasattr(self.model.forward, 'shape_hints'):
             self._input_desc.update(self.model.forward.shape_hints)
 
@@ -164,8 +166,10 @@ class StaticGraphAdapter(object):
         def _save(state, path):
             if not state:
                 return
-            state = {k: to_numpy(v) if isinstance(v, Variable) else v
-                     for k, v in state.items()}
+            state = {
+                k: to_numpy(v) if isinstance(v, Variable) else v
+                for k, v in state.items()
+            }
             with open(path, 'wb') as f:
                 pickle.dump(state, f)
 
@@ -178,8 +182,10 @@ class StaticGraphAdapter(object):
             return
         # XXX `optimizer.state_dict()` only work in dygraph mode
         optim_path = path + ".pdopt"
-        optim = {p.name: p for p in filter(
-            is_belong_to_optimizer, prog.list_vars())}
+        optim = {
+            p.name: p
+            for p in filter(is_belong_to_optimizer, prog.list_vars())
+        }
         if not optim:
             return
         # HACK this is contrived, optimizer state is not the same for
@@ -223,9 +229,9 @@ class StaticGraphAdapter(object):
             "optimizer saved in dygraph mode is not usable in static graph"
 
         if self._executor is not None:
-           self._load_optimizer(optim_state)
+            self._load_optimizer(optim_state)
         else:
-           self._lazy_load_optimizer = optim_state
+            self._lazy_load_optimizer = optim_state
 
     def _load_optimizer(self, state):
         prog = self._progs.get('train', None)
@@ -233,8 +239,9 @@ class StaticGraphAdapter(object):
         if not optim:
             return
 
-        fluid.core._create_loaded_parameter(
-            optim, global_scope(), self._executor._default_executor)
+        fluid.core._create_loaded_parameter(optim,
+                                            global_scope(),
+                                            self._executor._default_executor)
 
         for var in optim:
             assert var.name in state, \
@@ -265,8 +272,8 @@ class StaticGraphAdapter(object):
         if self._progs.get(self.mode, None) is None:
             self._make_program(self._infer_input_vars(inputs))
 
-        compiled_prog = self._compile_and_initialize(
-            self._progs[self.mode], device, device_ids)
+        compiled_prog = self._compile_and_initialize(self._progs[self.mode],
+                                                     device, device_ids)
 
         feed = {}
         input_names = [name for name in self._input_desc.keys()]
@@ -281,9 +288,9 @@ class StaticGraphAdapter(object):
         endpoints = self._endpoints[self.mode]
         fetch_list = endpoints['output'] + endpoints['loss']
         num_output = len(endpoints['output'])
-        out = self._executor.run(
-            compiled_prog, feed=feed,
-            fetch_list=fetch_list)
+        out = self._executor.run(compiled_prog,
+                                 feed=feed,
+                                 fetch_list=fetch_list)
         if self.mode == 'test':
             return out[:num_output]
         else:
@@ -308,10 +315,7 @@ class StaticGraphAdapter(object):
         if self.mode != 'train':  # clone again to put it in test mode
             prog = prog.clone(for_test=True)
         self._progs[self.mode] = prog
-        self._endpoints[self.mode] = {
-            "output": outputs,
-            "loss": losses
-        }
+        self._endpoints[self.mode] = {"output": outputs, "loss": losses}
 
     def _infer_input_vars(self, inputs):
         input_vars = []
@@ -383,8 +387,7 @@ class StaticGraphAdapter(object):
                 del self._compiled_progs['eval']
 
             compiled_prog = compiled_prog.with_data_parallel(
-                loss_name=loss_name,
-                share_vars_from=share_vars_from)
+                loss_name=loss_name, share_vars_from=share_vars_from)
 
         self._compiled_progs[self.mode] = compiled_prog
         return compiled_prog
@@ -480,22 +483,22 @@ class Model(fluid.dygraph.Layer):
     def test(self, *args, **kwargs):
         return self._adapter.test(*args, **kwargs)
 
-    def fit(self,
+    def fit(
+            self,
             train_iterator=None,
             eval_iterator=None,
             eval_freq=1,
             epochs=1,
             device=None,
             log_step=10,
-            save_freq=10,
+            save_freq=1,
             save_filepath='output',
-            verbose=2,
-            ):
+            verbose=2, ):
         if device is None:
             device = 'GPU' if fluid.is_compiled_with_cuda() else 'CPU'
         do_eval = eval_iterator is not None
         ## FIXME: get steps from train_iterator after DataLoader is completed
-        progbar = ProgressBar(num=None)
+        progbar = ProgressBar(num=None, verbose=verbose)
         for epoch in range(epochs):
             print("Epoch %d/%d" % (epoch, epochs))
             logs = []
@@ -506,19 +509,22 @@ class Model(fluid.dygraph.Layer):
                 if verbose and step % log_step == 0:
                     progbar.update(step, logs)
             progbar.update(step, logs)
-           
+
             if do_eval and epoch % eval_freq == 0:
                 ## FIXME: update when DataLoader is completed
                 print("Eval %d/%d" % (epoch, epochs))
-                eval_progbar = ProgressBar(num=None)
+                eval_progbar = ProgressBar(num=None, verbose=verbose)
                 logs = []
                 for step, data in enumerate(eval_iterator):
                     inputs, labels = data[0], data[1]
                     outs, loss = self.eval(inputs, labels, device)
-                    logs = [('loss ', np.sum(loss))]
+                    logs = [('loss', np.sum(loss))]
                     if verbose and step % log_step == 0:
                         progbar.update(step, logs)
                 eval_progbar.update(step, logs)
+
+            if epoch % save_freq == 0:
+                self.save('%s/%d/model' % (save_filepath, epoch))
 
     def save(self, *args, **kwargs):
         return self._adapter.save(*args, **kwargs)

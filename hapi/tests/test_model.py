@@ -122,7 +122,7 @@ def null_guard():
 class TestModel(unittest.TestCase):
     def fit(self, dynamic):
         guard = fluid.dygraph.guard() if dynamic else null_guard()
-        batch_size = 128
+        batch_size = 64
         train_loader = fluid.io.xmap_readers(
             lambda b: [np.array([x[0] for x in b]).reshape(-1, 1, 28, 28),
                        np.array([x[1] for x in b]).reshape(-1, 1)],
@@ -141,10 +141,15 @@ class TestModel(unittest.TestCase):
                 parameter_list=model.parameters())
             model.prepare(optim, CrossEntropy())
             model.fit(train_loader(), val_loader(), device='GPU')
-            #model.save('mnist_checkpoints/{:02d}'.format(e))
 
-    def test_fit(self):
+    # FIXME: check results in unit tests
+    def test_fit_static(self):
         self.fit(False)
+
+    # FIXME: check results in unit tests
+    def test_fit_dynamic(self):
+        self.fit(True)
+
 
 if __name__ == '__main__':
     unittest.main()
