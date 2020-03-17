@@ -16,6 +16,8 @@ from __future__ import absolute_import
 
 import inspect
 import os
+import io
+import sys
 import pickle
 from collections import OrderedDict
 
@@ -547,6 +549,20 @@ class Model(fluid.dygraph.Layer):
             self._adapter = DynamicGraphAdapter(self)
         else:
             self._adapter = StaticGraphAdapter(self)
+        """
+        using a simple dict to maintain the runtime status of the Model,
+        the one, whoever wants to config the fitting progress, can use
+        the runtime_states to activate his/her customized functions.
+        """
+        self._runtime_states = {
+            "step": 0,
+            "epoch": 0,
+            "learning_rate": 0.0,
+            "history": {
+                "train": [],
+                "eval": []
+            }
+        }
 
     def train(self, *args, **kwargs):
         return self._adapter.train(*args, **kwargs)
@@ -562,6 +578,59 @@ class Model(fluid.dygraph.Layer):
 
     def load(self, *args, **kwargs):
         return self._adapter.load(*args, **kwargs)
+
+    def report(self, content="", outstream=sys.stdout):
+
+        assert isinstance(outstream, io.IOBase)
+
+        if not content.endswith("\n"):
+            content += "\n"
+        outstream.write(content)
+
+    def report_loss(self, outstream=sys.stdout, report_period=100):
+
+        if self._runtime_states["step"] % report_period == 0:
+            self.report("[training] epoch %d, step %d, loss %0.3f\n" % (
+                self._runtime_states["epoch"], self._runtime_states["step"],
+                np.sum(self._runtime_states["curr_losses"])))
+
+    def report_eval_res(self, eval_reader, outstream=sys.stdout):
+
+        pass
+
+    def conditional_save(self, path="./saved", save_period=1000):
+
+        if not os.path.exists(path):
+            os.mkdir(path)
+
+        if self._runtime_states["step"] % save_period == 0:
+            self.save(
+                os.path.join(path, 'mnist_checkpoints/%d'.format(
+                    self._runtime_states["step"])))
+            self.report("[saving] save model at %s\n" %
+                        os.path.join(path, 'mnist_checkpoints/{:02d}'.format(
+                            self._runtime_states["step"])))
+
+    def fit(self,
+            train_reader,
+            eval_reader=None,
+            save_condition=False,
+            outstream=sys.stdout):
+
+        for epoch_idx, step_idx, batch in train_reader:
+            self._runtime_states["epoch"] = epoch_idx
+            self._runtime_states["step"] = step_idx
+
+            outputs, losses = self.train(batch[0], batch[1])
+
+            self._runtime_states["curr_losses"] = losses
+            self._runtime_states["curr_outputs"] = outputs
+            self._runtime_states["history"]["train"].append(
+                (epoch_idx, step_idx, outputs, losses))
+
+            self.report_loss(outstream)
+            self.report_eval_res(eval_reader, outstream)
+            self.conditional_save()
 
     def prepare(self,
                 optimizer=None,

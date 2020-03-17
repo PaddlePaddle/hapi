@@ -17,6 +17,7 @@ from __future__ import print_function
 
 import argparse
 import contextlib
+import sys
 import os
 
 import numpy as np
@@ -95,6 +96,35 @@ class MNIST(Model):
                     loc=0.0, scale=scale)),
             act="softmax")
 
+    def report_eval_res(self, eval_reader, outstream=sys.stdout):
+        def accuracy(pred, label, topk=(1, )):
+            maxk = max(topk)
+            pred = np.argsort(pred)[:, ::-1][:, :maxk]
+            correct = (pred == np.repeat(label, maxk, 1))
+
+            batch_size = label.shape[0]
+            res = []
+            for k in topk:
+                correct_k = correct[:, :k].sum()
+                res.append((correct_k, batch_size))
+            return res
+
+        if self._runtime_states["step"] % 300 == 0 and self._runtime_states[
+                "step"] > 0:
+            accum_acc = []
+            for epoch_idx, step_idx, batch in eval_reader:
+                outputs, losses = self.eval(batch[0], batch[1])
+                acc = accuracy(outputs[0], batch[1])
+                accum_acc.extend(acc)
+
+            correct = 0.
+            total = 0.
+            for a, b in accum_acc:
+                correct += a
+                total += b
+
+            self.report("[eval] eval acc %0.3f" % (correct / total))
+
     def forward(self, inputs):
         x = self._simple_img_conv_pool_1(inputs)
         x = self._simple_img_conv_pool_2(x)
@@ -114,6 +144,14 @@ def accuracy(pred, label, topk=(1, )):
         correct_k = correct[:, :k].sum()
         res.append(100.0 * correct_k / batch_size)
     return res
+
+
+def build_reader(loader, epoch_num):
+    step_idx = 0
+    for epoch_idx in range(epoch_num):
+        for batch in loader():
+            yield epoch_idx, step_idx, batch
+            step_idx += 1
 
 
 def main():
@@ -137,6 +175,9 @@ def main():
         paddle.batch(paddle.dataset.mnist.test(),
                      batch_size=FLAGS.batch_size, drop_last=True), 1, 1)
 
+    train_reader = build_reader(train_loader, FLAGS.epoch)
+    val_reader = build_reader(val_loader, 1)
+
     with guard:
         model = MNIST()
         optim = Momentum(
@@ -149,33 +190,7 @@ def main():
         if FLAGS.resume is not None:
             model.load(FLAGS.resume)
 
-        for e in range(FLAGS.epoch):
-            train_loss = 0.0
-            train_acc = 0.0
-            val_loss = 0.0
-            val_acc = 0.0
-            print("======== train epoch {} ========".format(e))
-            for idx, batch in enumerate(train_loader()):
-                outputs, losses = model.train(batch[0], batch[1])
-
-                acc = accuracy(outputs[0], batch[1])[0]
-                train_loss += np.sum(losses)
-                train_acc += acc
-                if idx % 10 == 0:
-                    print("{:04d}: loss {:0.3f} top1: {:0.3f}%".format(
-                        idx, train_loss / (idx + 1), train_acc / (idx + 1)))
-
-            print("======== eval epoch {} ========".format(e))
-            for idx, batch in enumerate(val_loader()):
-                outputs, losses = model.eval(batch[0], batch[1])
-
-                acc = accuracy(outputs[0], batch[1])[0]
-                val_loss += np.sum(losses)
-                val_acc += acc
-                if idx % 10 == 0:
-                    print("{:04d}: loss {:0.3f} top1: {:0.3f}%".format(
-                        idx, val_loss / (idx + 1), val_acc / (idx + 1)))
-            model.save('mnist_checkpoints/{:02d}'.format(e))
+        model.fit(train_reader, val_reader)
 
 
 if __name__ == '__main__':
