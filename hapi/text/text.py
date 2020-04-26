@@ -19,6 +19,7 @@ from __future__ import print_function
 import os
 import six
 import sys
+
 if six.PY2:
     reload(sys)
     sys.setdefaultencoding('utf8')
@@ -37,7 +38,7 @@ import paddle
 import paddle.fluid as fluid
 import paddle.fluid.layers.utils as utils
 from paddle.fluid.layers.utils import map_structure, flatten, pack_sequence_as
-from paddle.fluid.dygraph import to_variable, Embedding, Linear, LayerNorm, GRUUnit
+from paddle.fluid.dygraph import to_variable, Embedding, Linear, LayerNorm, GRUUnit, Conv2D
 from paddle.fluid.data_feeder import convert_dtype
 
 from paddle.fluid import layers
@@ -49,7 +50,8 @@ __all__ = [
     'BeamSearchDecoder', 'MultiHeadAttention', 'FFN',
     'TransformerEncoderLayer', 'TransformerEncoder', 'TransformerDecoderLayer',
     'TransformerDecoder', 'TransformerBeamSearchDecoder', 'Linear_chain_crf',
-    'Crf_decoding', 'SequenceTagging'
+    'Crf_decoding', 'SequenceTagging', 'GRUEncoderLayer', 'CNNEncoder',
+    'BOWEncoder', 'SimpleConvPoolLayer', 'GRUEncoder', 'DynamicGRU', 'LSTMEncoder'
 ]
 
 
@@ -87,12 +89,12 @@ class RNNCell(Layer):
         batch_ref = flatten(batch_ref)[0]
 
         def _is_shape_sequence(seq):
-            if sys.version_info < (3, ):
+            if sys.version_info < (3,):
                 integer_types = (
                     int,
-                    long, )
+                    long,)
             else:
-                integer_types = (int, )
+                integer_types = (int,)
             """For shape, list/tuple of integer is the finest-grained objection"""
             if (isinstance(seq, list) or isinstance(seq, tuple)):
                 if reduce(
@@ -247,8 +249,8 @@ class BasicLSTMCell(RNNCell):
 
         self.use_customized_weight = False
         for _weights in [
-                forget_gate_weights, input_gate_weights, output_gate_weights,
-                cell_weights
+            forget_gate_weights, input_gate_weights, output_gate_weights,
+            cell_weights
         ]:
             for _key in _weights:
                 if _weights[_key] is not None:
@@ -273,7 +275,7 @@ class BasicLSTMCell(RNNCell):
                 is_bias=True)
         else:
             if "w" in forget_gate_weights and forget_gate_weights[
-                    "w"] is not None:
+                "w"] is not None:
                 self.fg_w = forget_gate_weights["w"]
             else:
                 if self._param_attr is not None and self._param_attr.name is not None:
@@ -287,7 +289,7 @@ class BasicLSTMCell(RNNCell):
                     dtype=self._dtype)
 
             if "h" in forget_gate_weights and forget_gate_weights[
-                    "h"] is not None:
+                "h"] is not None:
                 self.fg_h = forget_gate_weights["h"]
             else:
                 if self._param_attr is not None and self._param_attr.name is not None:
@@ -301,7 +303,7 @@ class BasicLSTMCell(RNNCell):
                     dtype=self._dtype)
 
             if "b" in forget_gate_weights and forget_gate_weights[
-                    "b"] is not None:
+                "b"] is not None:
                 self.fg_b = forget_gate_weights["b"]
             else:
                 if self._bias_attr is not None and self._bias_attr.name is not None:
@@ -316,7 +318,7 @@ class BasicLSTMCell(RNNCell):
                     is_bias=True)
 
             if "w" in input_gate_weights and input_gate_weights[
-                    "w"] is not None:
+                "w"] is not None:
                 self.ig_w = input_gate_weights["w"]
             else:
                 if self._param_attr is not None and self._param_attr.name is not None:
@@ -331,7 +333,7 @@ class BasicLSTMCell(RNNCell):
                     dtype=self._dtype)
 
             if "h" in input_gate_weights and input_gate_weights[
-                    "h"] is not None:
+                "h"] is not None:
                 self.ig_h = input_gate_weights["h"]
             else:
                 if self._param_attr is not None and self._param_attr.name is not None:
@@ -346,7 +348,7 @@ class BasicLSTMCell(RNNCell):
                     dtype=self._dtype)
 
             if "b" in input_gate_weights and input_gate_weights[
-                    "b"] is not None:
+                "b"] is not None:
                 self.ig_b = input_gate_weights["b"]
             else:
                 if self._bias_attr is not None and self._bias_attr.name is not None:
@@ -361,7 +363,7 @@ class BasicLSTMCell(RNNCell):
                     is_bias=True)
 
             if "w" in output_gate_weights and output_gate_weights[
-                    "w"] is not None:
+                "w"] is not None:
                 self.og_w = output_gate_weights["w"]
             else:
                 if self._param_attr is not None and self._param_attr.name is not None:
@@ -375,7 +377,7 @@ class BasicLSTMCell(RNNCell):
                     dtype=self._dtype)
 
             if "h" in output_gate_weights and output_gate_weights[
-                    "h"] is not None:
+                "h"] is not None:
                 self.og_h = output_gate_weights["h"]
             else:
                 if self._param_attr is not None and self._param_attr.name is not None:
@@ -390,7 +392,7 @@ class BasicLSTMCell(RNNCell):
                     dtype=self._dtype)
 
             if "b" in output_gate_weights and output_gate_weights[
-                    "b"] is not None:
+                "b"] is not None:
                 self.og_b = output_gate_weights["b"]
             else:
                 if self._bias_attr is not None and self._bias_attr.name is not None:
@@ -545,7 +547,7 @@ class BasicGRUCell(RNNCell):
 
         self.use_customized_weight = False
         for _weights in [
-                update_gate_weights, reset_gate_weights, cell_weights
+            update_gate_weights, reset_gate_weights, cell_weights
         ]:
             for _key in _weights:
                 if _weights[_key] is not None:
@@ -601,7 +603,7 @@ class BasicGRUCell(RNNCell):
 
             # create the parameters of gates in gru
             if "w" in update_gate_weights and update_gate_weights[
-                    "w"] is not None:
+                "w"] is not None:
                 self.ug_w = update_gate_weights["w"]
             else:
                 if gate_param_attr is not None and gate_param_attr.name is not None:
@@ -615,7 +617,7 @@ class BasicGRUCell(RNNCell):
                     dtype=self._dtype)
 
             if "h" in update_gate_weights and update_gate_weights[
-                    "h"] is not None:
+                "h"] is not None:
                 self.ug_h = update_gate_weights["h"]
             else:
                 if gate_param_attr is not None and gate_param_attr.name is not None:
@@ -629,7 +631,7 @@ class BasicGRUCell(RNNCell):
                     dtype=self._dtype)
 
             if "b" in update_gate_weights and update_gate_weights[
-                    "b"] is not None:
+                "b"] is not None:
                 self.ug_b = update_gate_weights["b"]
             else:
                 if gate_bias_attr is not None and gate_bias_attr.name is not None:
@@ -645,7 +647,7 @@ class BasicGRUCell(RNNCell):
 
             # reset gate parameters
             if "w" in reset_gate_weights and reset_gate_weights[
-                    "w"] is not None:
+                "w"] is not None:
                 self.rg_w = reset_gate_weights["w"]
             else:
                 if gate_param_attr is not None and gate_param_attr.name is not None:
@@ -659,7 +661,7 @@ class BasicGRUCell(RNNCell):
                     dtype=self._dtype)
 
             if "h" in reset_gate_weights and reset_gate_weights[
-                    "h"] is not None:
+                "h"] is not None:
                 self.rg_h = reset_gate_weights["h"]
             else:
                 if gate_param_attr is not None and gate_param_attr.name is not None:
@@ -673,7 +675,7 @@ class BasicGRUCell(RNNCell):
                     dtype=self._dtype)
 
             if "b" in reset_gate_weights and reset_gate_weights[
-                    "b"] is not None:
+                "b"] is not None:
                 self.rg_b = reused_params["b"]
             else:
                 if gate_bias_attr is not None and gate_bias_attr.name is not None:
@@ -763,7 +765,7 @@ class BasicGRUCell(RNNCell):
         c = self._activation(candidate)
         new_hidden = u * pre_hidden + (1 - u) * c
 
-        return new_hidden
+        return new_hidden, new_hidden
 
     @property
     def state_shape(self):
@@ -801,7 +803,7 @@ class RNN(fluid.dygraph.Layer):
                 new_state = fluid.layers.elementwise_mul(
                     new_state, step_mask,
                     axis=0) - fluid.layers.elementwise_mul(
-                        state, (step_mask - 1), axis=0)
+                    state, (step_mask - 1), axis=0)
                 return new_state
 
             flat_inputs = flatten(inputs)
@@ -847,8 +849,8 @@ class RNN(fluid.dygraph.Layer):
                 outputs = map_structure(
                     lambda x: ArrayWrapper(x),
                     step_outputs) if i == 0 else map_structure(
-                        lambda x, x_array: x_array.append(x), step_outputs,
-                        outputs)
+                    lambda x, x_array: x_array.append(x), step_outputs,
+                    outputs)
 
             final_outputs = map_structure(
                 lambda x: fluid.layers.stack(x.array,
@@ -917,7 +919,7 @@ class DynamicDecode(Layer):
                     step_mask.stop_gradient = True
                 new_state = layers.elementwise_mul(
                     state, step_mask, axis=0) - layers.elementwise_mul(
-                        new_state, (step_mask - 1), axis=0)
+                    new_state, (step_mask - 1), axis=0)
                 if convert_dtype(state_dtype) in ["bool"]:
                     new_state = layers.cast(new_state, dtype=state_dtype)
                 return new_state
@@ -959,8 +961,8 @@ class DynamicDecode(Layer):
                 outputs = map_structure(
                     lambda x: ArrayWrapper(x),
                     step_outputs) if step_idx == 0 else map_structure(
-                        lambda x, x_array: x_array.append(x), step_outputs,
-                        outputs)
+                    lambda x, x_array: x_array.append(x), step_outputs,
+                    outputs)
                 inputs, states, finished, sequence_lengths = (
                     next_inputs, next_states, next_finished,
                     next_sequence_lengths)
@@ -989,7 +991,7 @@ class DynamicDecode(Layer):
 
             return (final_outputs, final_states,
                     sequence_lengths) if self.return_length else (
-                        final_outputs, final_states)
+                final_outputs, final_states)
         else:
             return fluid.layers.dynamic_decode(
                 self.decoder,
@@ -1040,7 +1042,7 @@ class TransformerBeamSearchDecoder(layers.BeamSearchDecoder):
         x = layers.reshape(
             x, [0] * (len(x.shape) - var_dim_in_state
                       ) + [self.batch_size * self.beam_size] +
-            [int(size) for size in x.shape[-var_dim_in_state + 2:]])
+               [int(size) for size in x.shape[-var_dim_in_state + 2:]])
         x = layers.transpose(
             x,
             list(range((len(x.shape) + 1 - var_dim_in_state), len(x.shape))) +
@@ -1051,9 +1053,9 @@ class TransformerBeamSearchDecoder(layers.BeamSearchDecoder):
         var_dim_size = layers.shape(x)[self.var_dim_in_state]
         x = layers.reshape(
             x, [-1, self.beam_size] +
-            [int(size)
-             for size in x.shape[1:self.var_dim_in_state]] + [var_dim_size] +
-            [int(size) for size in x.shape[self.var_dim_in_state + 1:]])
+               [int(size)
+                for size in x.shape[1:self.var_dim_in_state]] + [var_dim_size] +
+               [int(size) for size in x.shape[self.var_dim_in_state + 1:]])
         return x
 
     def step(self, time, inputs, states, **kwargs):
@@ -1116,7 +1118,7 @@ class PrePostProcessLayer(Layer):
             elif cmd == "d":  # add dropout
                 self.functors.append(lambda x: layers.dropout(
                     x, dropout_prob=dropout_rate, is_test=False)
-                                     if dropout_rate else x)
+                if dropout_rate else x)
 
     def forward(self, x, residual=None):
         for i, cmd in enumerate(self.process_cmd):
@@ -1217,7 +1219,7 @@ class MultiHeadAttention(Layer):
 
         # scale dot product attention
         product = layers.matmul(
-            x=q, y=k, transpose_y=True, alpha=self.d_model**-0.5)
+            x=q, y=k, transpose_y=True, alpha=self.d_model ** -0.5)
         if attn_bias:
             product += attn_bias
         weights = layers.softmax(product)
@@ -1307,7 +1309,6 @@ class TransformerEncoderLayer(Layer):
                  reused_ffn_weights={"reused_fc1": None,
                                      "reused_fc2": None},
                  reused_post_ffn_layernorm=None):
-
         super(TransformerEncoderLayer, self).__init__()
 
         self.preprocesser1 = PrePostProcessLayer(preprocess_cmd, d_model,
@@ -1555,7 +1556,7 @@ class TransformerDecoder(Layer):
         ]
 
 
-#TODO: we should merge GRUCell with BasicGRUCell
+# TODO: we should merge GRUCell with BasicGRUCell
 class GRUCell(RNNCell):
     def __init__(self,
                  input_size,
@@ -1589,7 +1590,7 @@ class GRUCell(RNNCell):
         return [self.hidden_size]
 
 
-#TODO: we should merge GRUCell with BasicGRUCell
+# TODO: we should merge GRUCell with BasicGRUCell
 class GRUEncoderCell(RNNCell):
     def __init__(self,
                  num_layers,
@@ -1605,7 +1606,7 @@ class GRUEncoderCell(RNNCell):
             self.gru_cells.append(
                 self.add_sublayer(
                     "gru_%d" % i,
-                    #BasicGRUCell(
+                    # BasicGRUCell(
                     GRUCell(
                         input_size=input_size if i == 0 else hidden_size,
                         hidden_size=hidden_size,
@@ -1672,7 +1673,6 @@ class Linear_chain_crf(fluid.dygraph.Layer):
         self._transition = value
 
     def forward(self, input, label, length=None):
-
         alpha = self._helper.create_variable_for_type_inference(
             dtype=self._dtype)
         emission_exps = self._helper.create_variable_for_type_inference(
@@ -1723,7 +1723,6 @@ class Crf_decoding(fluid.dygraph.Layer):
         self._transition = value
 
     def forward(self, input, label=None, length=None):
-
         viterbi_path = self._helper.create_variable_for_type_inference(
             dtype=self._dtype)
         this_inputs = {
@@ -1739,6 +1738,64 @@ class Crf_decoding(fluid.dygraph.Layer):
             outputs={"ViterbiPath": [viterbi_path]},
             attrs={"is_test": self._is_test, })
         return viterbi_path
+
+
+class GRUEncoderLayer(Layer):
+    def __init__(self,
+                 input_dim,
+                 grnn_hidden_dim,
+                 init_bound,
+                 num_layers=1,
+                 h_0=None,
+                 is_bidirection=False):
+        super(GRUEncoderLayer, self).__init__()
+        self.h_0 = h_0
+        self.num_layers = num_layers
+        self.is_bidirection = is_bidirection
+        self.gru_list = []
+        self.gru_r_list = []
+        for i in range(num_layers):
+            self.basic_gru_cell = BasicGRUCell(
+                input_size=input_dim if i == 0 else input_dim * 2,
+                hidden_size=grnn_hidden_dim,
+                param_attr=fluid.ParamAttr(
+                    initializer=fluid.initializer.UniformInitializer(
+                        low=-init_bound, high=init_bound),
+                    regularizer=fluid.regularizer.L2DecayRegularizer(
+                        regularization_coeff=1e-4)))
+            self.gru_list.append(
+                self.add_sublayer(
+                    "gru_%d" % i,
+                    RNN(self.basic_gru_cell,
+                        is_reverse=False,
+                        time_major=False)))
+        if self.is_bidirection:
+            for i in range(num_layers):
+                self.basic_gru_cell_r = BasicGRUCell(
+                    input_size=input_dim if i == 0 else input_dim * 2,
+                    hidden_size=grnn_hidden_dim,
+                    param_attr=fluid.ParamAttr(
+                        initializer=fluid.initializer.UniformInitializer(
+                            low=-init_bound, high=init_bound),
+                        regularizer=fluid.regularizer.L2DecayRegularizer(
+                            regularization_coeff=1e-4)))
+                self.gru_r_list.append(
+                    self.add_sublayer(
+                        "gru_r_%d" % i,
+                        RNN(self.basic_gru_cell_r,
+                            is_reverse=True,
+                            time_major=False)))
+
+    def forward(self, input_feature):
+        for i in range(self.num_layers):
+            pre_gru, pre_state = self.gru_list[i](input_feature)
+            if self.is_bidirection:
+                gru_r, r_state = self.gru_r_list[i](input_feature)
+                out = fluid.layers.concat(input=[pre_gru, gru_r], axis=-1)
+            else:
+                out = pre_gru
+            input_feature = out
+        return out
 
 
 class SequenceTagging(fluid.dygraph.Layer):
@@ -1790,26 +1847,13 @@ class SequenceTagging(fluid.dygraph.Layer):
             force_cpu=True,
             name='h_0')
 
-        self.bigru_units = []
-        for i in range(self.bigru_num):
-            if i == 0:
-                self.bigru_units.append(
-                    self.add_sublayer(
-                        "bigru_units%d" % i,
-                        BiGRU(
-                            self.grnn_hidden_dim,
-                            self.grnn_hidden_dim,
-                            self.init_bound,
-                            h_0=h_0)))
-            else:
-                self.bigru_units.append(
-                    self.add_sublayer(
-                        "bigru_units%d" % i,
-                        BiGRU(
-                            self.grnn_hidden_dim * 2,
-                            self.grnn_hidden_dim,
-                            self.init_bound,
-                            h_0=h_0)))
+        self.gru_encoder = GRUEncoderLayer(
+            input_dim=self.grnn_hidden_dim,
+            grnn_hidden_dim=self.grnn_hidden_dim,
+            init_bound=self.init_bound,
+            num_layers=self.bigru_num,
+            h_0=h_0,
+            is_bidirection=True)
 
         self.fc = Linear(
             input_dim=self.grnn_hidden_dim * 2,
@@ -1837,10 +1881,7 @@ class SequenceTagging(fluid.dygraph.Layer):
         word_embed = self.word_embedding(word)
         input_feature = word_embed
 
-        for i in range(self.bigru_num):
-            bigru_output = self.bigru_units[i](input_feature)
-            input_feature = bigru_output
-
+        bigru_output = self.gru_encoder(input_feature)
         emission = self.fc(bigru_output)
 
         if target is not None:
@@ -1854,3 +1895,227 @@ class SequenceTagging(fluid.dygraph.Layer):
             self.linear_chain_crf.weight = self.crf_decoding.weight
             crf_decode = self.crf_decoding(input=emission, length=lengths)
             return crf_decode, lengths
+
+class SimpleConvPoolLayer(Layer):
+    def __init__(self,
+                 num_channels,
+                 num_filters,
+                 filter_size,
+                 use_cudnn=False,
+                 act=None
+                 ):
+        super(SimpleConvPoolLayer, self).__init__()
+        self._conv2d = Conv2D(num_channels=num_channels,
+                              num_filters=num_filters,
+                              filter_size=filter_size,
+                              padding=[1, 1],
+                              use_cudnn=use_cudnn,
+                              act=act)
+
+    def forward(self, input):
+        x = self._conv2d(input)
+        x = fluid.layers.reduce_max(x, dim=-1)
+        x = fluid.layers.reshape(x, shape=[x.shape[0], -1])
+        return x
+
+
+class CNNEncoder(Layer):
+    """
+    simple CNNEncoder for simnet
+    """
+    def __init__(self,
+                 dict_size,
+                 emb_dim,
+                 filter_size,
+                 num_filters,
+                 hidden_dim,
+                 seq_len,
+                 padding_idx,
+                 act
+                 ):
+        super(CNNEncoder, self).__init__()
+        self.dict_size = dict_size
+        self.emb_dim = emb_dim
+        self.filter_size = filter_size
+        self.num_filters = num_filters
+        self.hidden_dim = hidden_dim
+        self.seq_len = seq_len
+        self.padding_idx = padding_idx
+        self.act = act
+        self.channels = 1
+        self.emb_layer = Embedding(size=[self.dict_size, self.emb_dim],
+                                   is_sparse=True,
+                                   padding_idx=self.padding_idx,
+                                   param_attr=fluid.ParamAttr(name='emb', initializer=fluid.initializer.Xavier()))
+        self.cnn_layer = SimpleConvPoolLayer(
+            self.channels,
+            self.num_filters,
+            self.filter_size,
+            use_cudnn=False,
+            act=self.act
+        )
+
+    def forward(self, input):
+        emb = self.emb_layer(input)
+        emb_reshape = fluid.layers.reshape(
+            emb, shape=[-1, self.channels, self.seq_len, self.hidden_dim])
+        emb_out=self.cnn_layer(emb_reshape)
+        return emb_out
+
+class BOWEncoder(Layer):
+    """
+    simple BOWEncoder for simnet
+    """
+    def __init__(self,
+                 dict_size,
+                 emb_dim,
+                 bow_dim,
+                 seq_len,
+                 padding_idx
+                 ):
+        super(BOWEncoder, self).__init__()
+        self.dict_size = dict_size
+        self.bow_dim = bow_dim
+        self.seq_len = seq_len
+        self.emb_dim = emb_dim
+        self.padding_idx=padding_idx
+        self.emb_layer = Embedding(size=[self.dict_size, self.emb_dim],
+                                   is_sparse=True,
+                                   padding_idx=self.padding_idx,
+                                   param_attr=fluid.ParamAttr(name='emb', initializer=fluid.initializer.Xavier()))
+
+    def forward(self, input):
+        emb = self.emb_layer(input)
+        emb_reshape = fluid.layers.reshape(
+            emb, shape=[-1, self.seq_len, self.bow_dim])
+        bow_emb = fluid.layers.reduce_sum(emb_reshape, dim=1)
+        return bow_emb
+
+class DynamicGRU(fluid.dygraph.Layer):
+    def __init__(self,
+                 size,
+                 h_0=None,
+                 param_attr=None,
+                 bias_attr=None,
+                 is_reverse=False,
+                 gate_activation='sigmoid',
+                 candidate_activation='tanh',
+                 origin_mode=False,
+                 init_size=None):
+        super(DynamicGRU, self).__init__()
+
+        self.gru_unit = GRUUnit(
+            size * 3,
+            param_attr=param_attr,
+            bias_attr=bias_attr,
+            activation=candidate_activation,
+            gate_activation=gate_activation,
+            origin_mode=origin_mode)
+
+        self.size = size
+        self.h_0 = h_0
+        self.is_reverse = is_reverse
+
+    def forward(self, inputs):
+        hidden = self.h_0
+        res = []
+        for i in range(inputs.shape[1]):
+            if self.is_reverse:
+                i = inputs.shape[1] - 1 - i
+            input_ = inputs[:, i:i + 1, :]
+            input_ = fluid.layers.reshape(
+                input_, [-1, input_.shape[2]], inplace=False)
+            hidden, reset, gate = self.gru_unit(input_, hidden)
+            hidden_ = fluid.layers.reshape(
+                hidden, [-1, 1, hidden.shape[1]], inplace=False)
+            res.append(hidden_)
+        if self.is_reverse:
+            res = res[::-1]
+        res = fluid.layers.concat(res, axis=1)
+        return res
+
+class GRUEncoder(Layer):
+    """
+    simple GRUEncoder for simnet
+    """
+    def __init__(self,
+                 dict_size,
+                 emb_dim,
+                 gru_dim,
+                 hidden_dim,
+                 padding_idx,
+                 seq_len
+                 ):
+        super(GRUEncoder, self).__init__()
+        self.dict_size = dict_size
+        self.emb_dim = emb_dim
+        self.gru_dim = gru_dim
+        self.seq_len=seq_len
+        self.hidden_dim = hidden_dim
+        self.padding_idx=self.padding_idx
+        self.emb_layer = Embedding(size=[self.dict_size, self.emb_dim],
+                                                    is_sparse=True,
+                                                    padding_idx=self.padding_idx,
+                                                    param_attr=fluid.ParamAttr(name='emb',
+                                                                               initializer=fluid.initializer.Xavier()))
+        self.gru_layer = DynamicGRU(self.gru_dim)
+        self.proj_layer = Linear(input_dim=self.hidden_dim, output_dim=self.gru_dim * 3)
+
+    def forward(self, input):
+        emb = self.emb_layer(input)
+        emb_proj = self.proj_layer(emb)
+        h_0 = np.zeros((emb_proj.shape[0], self.hidden_dim), dtype="float32")
+        h_0 = to_variable(h_0)
+        gru = self.gru_layer(emb_proj, h_0=h_0)
+        gru = fluid.layers.reduce_max(gru, dim=1)
+        gru = fluid.layers.tanh(gru)
+        return gru
+
+class LSTMEncoder(Layer):
+    """
+    simple LSTMEncoder for simnet
+    """
+    def __init__(self,
+                 dict_size,
+                 emb_dim,
+                 lstm_dim,
+                 hidden_dim,
+                 seq_len,
+                 padding_idx,
+                 is_reverse
+                 ):
+        """
+        initialize
+        """
+        super(LSTMEncoder, self).__init__()
+        self.dict_size = dict_size
+        self.emb_dim = emb_dim
+        self.lstm_dim = lstm_dim
+        self.hidden_dim = hidden_dim
+        self.seq_len = seq_len
+        self.is_reverse = False
+        self.padding_idx=padding_idx
+
+        self.emb_layer = Embedding(size=[self.dict_size, self.emb_dim],
+                                   is_sparse=True,
+                                   padding_idx=self.padding_idx,
+                                   param_attr=fluid.ParamAttr(name='emb', initializer=fluid.initializer.Xavier()))
+
+        self.lstm_cell = BasicLSTMCell(
+            hidden_size=self.lstm_dim, input_size=self.lstm_dim * 4
+        )
+        self.lstm_layer = RNN(
+            cell=self.lstm_cell, time_major=True, is_reverse=self.is_reverse
+        )
+        self.proj_layer = Linear(input_dim=self.hidden_dim, output_dim=self.lstm_dim * 4)
+
+    def forward(self, input):
+        emb = self.emb_layer(input)
+        emb_proj = self.proj_layer(emb)
+        emb_lstm, _ = self.lstm_layer(emb_proj)
+        emb_reduce = fluid.layers.reduce_max(emb_lstm, dim=1)
+        emb_reshape = fluid.layers.reshape(
+            emb_reduce, shape=[-1, self.seq_len, self.hidden_dim])
+        emb_lstm = fluid.layers.reduce_sum(emb_reshape, dim=1)
+        emb_last = fluid.layers.tanh(emb_lstm)
+        return emb_last
