@@ -19,7 +19,6 @@ from hapi.model import Model
 from hapi.text.text import GRUEncoderLayer as BiGRUEncoder
 from hapi.text.text import BOWEncoder, CNNEncoder, GRUEncoder, LSTMEncoder
 
-
 class CNN(Model):
     def __init__(self,  dict_dim, seq_len):
         super(CNN, self).__init__()
@@ -27,7 +26,7 @@ class CNN(Model):
         self.emb_dim = 128
         self.hid_dim = 128
         self.fc_hid_dim = 96
-        self.class_dim = 2
+        self.class_dim = 3
         self.channels = 1
         self.win_size = [3, self.hid_dim]
         self.seq_len = seq_len
@@ -59,7 +58,7 @@ class BOW(Model):
         self.emb_dim = 128
         self.hid_dim = 128
         self.fc_hid_dim = 96
-        self.class_dim = 2
+        self.class_dim = 3
         self.seq_len = seq_len
         self._encoder = BOWEncoder(
             dict_size=self.dict_dim + 1,
@@ -89,7 +88,7 @@ class GRU(Model):
         self.emb_dim = 128
         self.hid_dim = 128
         self.fc_hid_dim = 96
-        self.class_dim = 2
+        self.class_dim = 3
         self.seq_len = seq_len
         self._fc1 = Linear(input_dim=self.hid_dim, output_dim=self.fc_hid_dim, act="tanh")
         self._fc_prediction = Linear(input_dim=self.fc_hid_dim,
@@ -117,7 +116,7 @@ class BiGRU(Model):
         self.emb_dim = 128
         self.hid_dim = 128
         self.fc_hid_dim = 96
-        self.class_dim = 2
+        self.class_dim = 3
         self.batch_size = batch_size
         self.seq_len = seq_len
         self.embedding = Embedding(
@@ -158,7 +157,7 @@ class LSTM(Model):
         self.emb_dim = 128,
         self.hid_dim = 128,
         self.fc_hid_dim = 96,
-        self.class_dim = 2,
+        self.class_dim = 3,
         self.emb_lr = 30.0,
         self._encoder = LSTMEncoder(
             dict_size=dict_dim + 1,

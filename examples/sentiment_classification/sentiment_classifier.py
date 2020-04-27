@@ -17,11 +17,11 @@
 from __future__ import print_function
 import numpy as np
 import paddle.fluid as fluid
-from hapi.model import set_device, Model, CrossEntropy, Input
+from hapi.model import set_device, CrossEntropy, Input
 from hapi.configure import Config
 from hapi.text.senta import SentaProcessor
 from hapi.metrics import Accuracy
-from models import CNN, BOW, GRU, BiGRU
+from models import CNN, BOW, GRU, BiGRU, LSTM
 import json
 import os
 
@@ -37,6 +37,26 @@ def main():
         train()
     elif args.do_infer:
         infer()
+
+def create_model():
+    if args.model_type == 'cnn_net':
+        model = CNN( args.vocab_size,
+                     args.padding_size)
+    elif args.model_type == 'bow_net':
+        model = BOW( args.vocab_size,
+                     args.padding_size)
+    elif args.model_type == 'lstm_net':
+        model = LSTM( args.vocab_size,
+                     args.padding_size)
+    elif args.model_type == 'gru_net':
+        model = GRU( args.vocab_size,
+                     args.padding_size)
+    elif args.model_type == 'bigru_net':
+        model = BiGRU( args.vocab_size, args.batch_size,
+                       args.padding_size)
+    else:
+        raise ValueError("Unknown model type!")
+    return model
 
 def train():
     fluid.enable_dygraph(device)
@@ -65,23 +85,13 @@ def train():
         phase='dev',
         epoch=args.epoch,
         shuffle=False)
-    if args.model_type == 'cnn_net':
-        model = CNN( args.vocab_size, args.batch_size,
-                     args.padding_size)
-    elif args.model_type == 'bow_net':
-        model = BOW( args.vocab_size, args.batch_size,
-                     args.padding_size)
-    elif args.model_type == 'gru_net':
-        model = GRU( args.vocab_size, args.batch_size,
-                     args.padding_size)
-    elif args.model_type == 'bigru_net':
-        model = BiGRU( args.vocab_size, args.batch_size,
-                       args.padding_size)
     
-    optimizer = fluid.optimizer.Adagrad(learning_rate=args.lr, parameter_list=model.parameters()) 
     
     inputs = [Input([None, None], 'int64', name='doc')]
     labels = [Input([None, 1], 'int64', name='label')]
+
+    model = create_model()
+    optimizer = fluid.optimizer.Adagrad(learning_rate=args.lr, parameter_list=model.parameters()) 
     
     model.prepare(
         optimizer,
@@ -113,19 +123,8 @@ def infer():
         phase='infer',
         epoch=1,
         shuffle=False)
-    if args.model_type == 'cnn_net':
-        model_infer = CNN( args.vocab_size, args.batch_size,
-                           args.padding_size)
-    elif args.model_type == 'bow_net':
-        model_infer = BOW( args.vocab_size, args.batch_size,
-                           args.padding_size)
-    elif args.model_type == 'gru_net':
-        model_infer = GRU( args.vocab_size, args.batch_size,
-                           args.padding_size)
-    elif args.model_type == 'bigru_net':
-        model_infer = BiGRU( args.vocab_size, args.batch_size,
-                             args.padding_size)
-    
+
+    model_infer = create_model()
     print('Do inferring ...... ')
     inputs = [Input([None, None], 'int64', name='doc')]
     model_infer.prepare(
