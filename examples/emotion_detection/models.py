@@ -124,8 +124,8 @@ class BiGRU(Model):
             dtype='float32',
             param_attr=fluid.ParamAttr(learning_rate=30),
             is_sparse=False)
-        h_0 = np.zeros((self.batch_size, self.hid_dim), dtype="float32")
-        h_0 = to_variable(h_0)
+        # h_0 = np.zeros((self.batch_size, self.hid_dim), dtype="float32")
+        # h_0 = to_variable(h_0)
         self._fc1 = Linear(input_dim = self.hid_dim, output_dim=self.hid_dim*3)
         self._fc2 = Linear(input_dim = self.hid_dim*2, output_dim=self.fc_hid_dim, act="tanh")
         self._fc_prediction = Linear(input_dim=self.fc_hid_dim,
@@ -134,7 +134,7 @@ class BiGRU(Model):
         self._encoder = BiGRUEncoder(
             grnn_hidden_dim=self.hid_dim,
             input_dim=self.hid_dim * 3,
-            h_0=h_0,
+            # h_0=h_0,
             init_bound=0.1,
             is_bidirection=True)
 
