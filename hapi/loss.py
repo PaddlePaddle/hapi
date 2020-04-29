@@ -30,8 +30,8 @@ class Loss(object):
     Base class for loss, encapsulates loss logic and APIs
 
     Usage:
-    custom_loss = CustomLoss()
-    loss = custom_loss(inputs, labels)
+        custom_loss = CustomLoss()
+        loss = custom_loss(inputs, labels)
     """
 
     def __init__(self, average=True):
@@ -63,10 +63,25 @@ class CrossEntropy(Loss):
         average (bool, optional): Indicate whether to average the loss, Default: True.
     Returns:
         list[Variable]: The tensor variable storing the cross_entropy_loss of inputs and labels.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.model import Input
+            from hapi.vision.models import LeNet
+            from hapi.loss import CrossEntropy
+
+            inputs = [Input([-1, 1, 28, 28], 'float32', name='image')]
+            labels = [Input([None, 1], 'int64', name='label')]
+
+            model = LeNet()
+            loss = CrossEntropy()
+            model.prepare(loss_function=loss, inputs=inputs, labels=labels)
+            
     """
 
     def __init__(self, average=True):
-        super(CrossEntropy, self).__init__()
+        super(CrossEntropy, self).__init__(average)
 
     def forward(self, outputs, labels):
         return [
@@ -85,10 +100,24 @@ class SoftmaxWithCrossEntropy(Loss):
         average (bool, optional): Indicate whether to average the loss, Default: True.
     Returns:
         list[Variable]: The tensor variable storing the cross_entropy_loss of inputs and labels.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.model import Input
+            from hapi.vision.models import LeNet
+            from hapi.loss import SoftmaxWithCrossEntropy
+
+            inputs = [Input([-1, 1, 28, 28], 'float32', name='image')]
+            labels = [Input([None, 1], 'int64', name='label')]
+
+            model = LeNet(classifier_activation=None)
+            loss = SoftmaxWithCrossEntropy()
+            model.prepare(loss_function=loss, inputs=inputs, labels=labels)
     """
 
     def __init__(self, average=True):
-        super(SoftmaxWithCrossEntropy, self).__init__()
+        super(SoftmaxWithCrossEntropy, self).__init__(average)
 
     def forward(self, outputs, labels):
         return [

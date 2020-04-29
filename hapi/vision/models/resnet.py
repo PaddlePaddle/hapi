@@ -26,7 +26,8 @@ from hapi.model import Model
 from hapi.download import get_weights_path_from_url
 
 __all__ = [
-    'ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
+    'ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
+    'BottleneckBlock', 'BasicBlock'
 ]
 
 model_urls = {
@@ -75,7 +76,8 @@ class ConvBNLayer(fluid.dygraph.Layer):
 
 
 class BasicBlock(fluid.dygraph.Layer):
-
+    """residual block of resnet18 and resnet34
+    """
     expansion = 1
 
     def __init__(self, num_channels, num_filters, stride, shortcut=True):
@@ -117,6 +119,8 @@ class BasicBlock(fluid.dygraph.Layer):
 
 
 class BottleneckBlock(fluid.dygraph.Layer):
+    """residual block of resnet50, resnet101 amd resnet152
+    """
 
     expansion = 4
 
@@ -177,6 +181,16 @@ class ResNet(Model):
                             will not be defined. Default: 1000.
         with_pool (bool): use pool before the last fc layer or not. Default: True.
         classifier_activation (str): activation for the last fc layer. Default: 'softmax'.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import ResNet, BottleneckBlock, BasicBlock
+
+            resnet50 = ResNet(BottleneckBlock, 50)
+
+            resnet18 = ResNet(BasicBlock, 18)
+
     """
 
     def __init__(self,
@@ -280,6 +294,17 @@ def resnet18(pretrained=False, **kwargs):
     
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import resnet18
+
+            # build model
+            model = resnet18()
+
+            #build model and load imagenet pretrained weight
+            model = resnet18(pretrained=True)
     """
     return _resnet('resnet18', BasicBlock, 18, pretrained, **kwargs)
 
@@ -289,6 +314,17 @@ def resnet34(pretrained=False, **kwargs):
     
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
+    
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import resnet34
+
+            # build model
+            model = resnet34()
+
+            #build model and load imagenet pretrained weight
+            model = resnet34(pretrained=True)
     """
     return _resnet('resnet34', BasicBlock, 34, pretrained, **kwargs)
 
@@ -298,6 +334,17 @@ def resnet50(pretrained=False, **kwargs):
     
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import resnet50
+
+            # build model
+            model = resnet50()
+
+            #build model and load imagenet pretrained weight
+            model = resnet50(pretrained=True)
     """
     return _resnet('resnet50', BottleneckBlock, 50, pretrained, **kwargs)
 
@@ -307,6 +354,17 @@ def resnet101(pretrained=False, **kwargs):
     
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import resnet101
+
+            # build model
+            model = resnet101()
+
+            #build model and load imagenet pretrained weight
+            model = resnet101(pretrained=True)
     """
     return _resnet('resnet101', BottleneckBlock, 101, pretrained, **kwargs)
 
@@ -316,5 +374,16 @@ def resnet152(pretrained=False, **kwargs):
     
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import resnet152
+
+            # build model
+            model = resnet152()
+
+            #build model and load imagenet pretrained weight
+            model = resnet152(pretrained=True)
     """
     return _resnet('resnet152', BottleneckBlock, 152, pretrained, **kwargs)

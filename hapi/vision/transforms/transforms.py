@@ -118,6 +118,67 @@ class BatchCompose(object):
         transforms (list of ``Transform`` objects): list of transforms to compose.
                                             these transforms perform on batch data.
 
+    Examples:
+    
+        .. code-block:: python
+
+            import numpy as np
+            from paddle.io import DataLoader
+
+            from hapi.model import set_device
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, BatchCompose, Resize
+
+            class NormalizeBatch(object):
+                def __init__(self,
+                            mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225],
+                            scale=True,
+                            channel_first=True):
+
+                    self.mean = mean
+                    self.std = std
+                    self.scale = scale
+                    self.channel_first = channel_first
+                    if not (isinstance(self.mean, list) and isinstance(self.std, list) and
+                            isinstance(self.scale, bool)):
+                        raise TypeError("{}: input type is invalid.".format(self))
+                    from functools import reduce
+                    if reduce(lambda x, y: x * y, self.std) == 0:
+                        raise ValueError('{}: std is invalid!'.format(self))
+
+                def __call__(self, samples):
+                    for i in range(len(samples)):
+                        samples[i] = list(samples[i])
+                        im = samples[i][0]
+                        im = im.astype(np.float32, copy=False)
+                        mean = np.array(self.mean)[np.newaxis, np.newaxis, :]
+                        std = np.array(self.std)[np.newaxis, np.newaxis, :]
+                        if self.scale:
+                            im = im / 255.0
+                        im -= mean
+                        im /= std
+                        if self.channel_first:
+                            im = im.transpose((2, 0, 1))
+                        samples[i][0] = im
+                    return samples
+
+            transform = Compose([Resize((500, 500))])
+            flowers_dataset = Flowers(mode='test', transform=transform)
+
+            device = set_device('cpu')
+
+            collate_fn = BatchCompose([NormalizeBatch()])
+            loader = DataLoader(
+                        flowers_dataset,
+                        batch_size=4,
+                        places=device,
+                        return_list=True,
+                        collate_fn=collate_fn)
+
+            for data in loader:
+                # do something
+                break
     """
 
     def __init__(self, transforms=[]):
@@ -149,6 +210,20 @@ class Resize(object):
             i.e, if height > width, then image will be rescaled to
             (size * height / width, size)
         interpolation (int): interpolation mode of resize. Default: cv2.INTER_LINEAR.
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, Resize
+
+            transform = Compose([Resize(size=224)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(10):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, size, interpolation=cv2.INTER_LINEAR):
@@ -171,6 +246,20 @@ class RandomResizedCrop(object):
         output_size (int|list|tuple): Target size of output image, with (height, width) shape.
         scale (list|tuple): Range of size of the origin size cropped. Default: (0.08, 1.0)
         ratio (list|tuple): Range of aspect ratio of the origin aspect ratio cropped. Default: (0.75, 1.33)
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, Resize, RandomResizedCrop
+
+            transform = Compose([Resize(500), RandomResizedCrop(224)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self,
@@ -233,6 +322,20 @@ class CenterCropResize(object):
         size (int|list|tuple): Target size of output image, with (height, width) shape.
         crop_padding (int): center crop with the padding. Default: 32.
         interpolation (int): interpolation mode of resize. Default: cv2.INTER_LINEAR.
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, Resize, CenterCropResize
+
+            transform = Compose([Resize(500), CenterCropResize(224)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, size, crop_padding=32, interpolation=cv2.INTER_LINEAR):
@@ -262,6 +365,20 @@ class CenterCrop(object):
 
     Args:
         output_size: Target size of output image, with (height, width) shape.
+    
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, Resize, CenterCrop
+
+            transform = Compose([Resize(500), CenterCrop(224)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, output_size):
@@ -289,6 +406,20 @@ class RandomHorizontalFlip(object):
 
     Args:
         prob (float): probability of the input data being flipped. Default: 0.5
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, RandomHorizontalFlip
+
+            transform = Compose([RandomHorizontalFlip()])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, prob=0.5):
@@ -305,6 +436,20 @@ class RandomVerticalFlip(object):
 
     Args:
         prob (float): probability of the input data being flipped. Default: 0.5
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, RandomVerticalFlip
+
+            transform = Compose([RandomVerticalFlip()])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, prob=0.5):
@@ -325,6 +470,23 @@ class Normalize(object):
     Args:
         mean (int|float|list): Sequence of means for each channel.
         std (int|float|list): Sequence of standard deviations for each channel.
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, Normalize, Permute
+
+            normalize = Normalize(mean=[123.675, 116.28, 103.53], 
+                                std=[58.395, 57.120, 57.375])
+
+            transform = Compose([Permute(), normalize])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     
     """
 
@@ -351,6 +513,20 @@ class Permute(object):
     Args:
         mode: Output mode of input. Default: "CHW".
         to_rgb: convert 'bgr' image to 'rgb'. Default: True.
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, Permute
+
+            transform = Compose([Permute()])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, mode="CHW", to_rgb=True):
@@ -375,6 +551,20 @@ class GaussianNoise(object):
     Args:
         mean: Gaussian mean used to generate noise.
         std: Gaussian standard deviation used to generate noise.
+    
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, GaussianNoise
+
+            transform = Compose([GaussianNoise()])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, mean=0.0, std=1.0):
@@ -394,6 +584,20 @@ class BrightnessTransform(object):
     Args:
         value: How much to adjust the brightness. Can be any
             non negative number. 0 gives the original image
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, BrightnessTransform
+
+            transform = Compose([BrightnessTransform(0.4)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, value):
@@ -418,6 +622,20 @@ class ContrastTransform(object):
     Args:
         value: How much to adjust the contrast. Can be any
             non negative number. 0 gives the original image
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, ContrastTransform
+
+            transform = Compose([ContrastTransform(0.4)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, value):
@@ -443,6 +661,20 @@ class SaturationTransform(object):
     Args:
         value: How much to adjust the saturation. Can be any
             non negative number. 0 gives the original image
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, SaturationTransform
+
+            transform = Compose([SaturationTransform(0.4)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, value):
@@ -469,6 +701,20 @@ class HueTransform(object):
     Args:
         value: How much to adjust the hue. Can be any number
             between 0 and 0.5, 0 gives the original image
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, HueTransform
+
+            transform = Compose([HueTransform(0.4)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, value):
@@ -510,6 +756,20 @@ class ColorJitter(object):
         hue: How much to jitter hue.
             Chosen uniformly from [-hue, hue] or the given [min, max].
             Should have 0<= hue <= 0.5 or -0.5 <= min <= max <= 0.5.
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, ColorJitter
+
+            transform = Compose([ColorJitter(0.4)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(2):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
     """
 
     def __init__(self, brightness=0, contrast=0, saturation=0, hue=0):

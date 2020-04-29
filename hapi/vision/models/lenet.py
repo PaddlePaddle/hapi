@@ -29,6 +29,13 @@ class LeNet(Model):
         num_classes (int): output dim of last fc layer. If num_classes <=0, last fc layer 
                             will not be defined. Default: 10.
         classifier_activation (str): activation for the last fc layer. Default: 'softmax'.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import LeNet
+
+            model = LeNet()
     """
 
     def __init__(self, num_classes=10, classifier_activation='softmax'):

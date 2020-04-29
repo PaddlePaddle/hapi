@@ -38,7 +38,7 @@ def setup_logger(output=None, name="hapi", log_level=logging.INFO):
 
     # stdout logging: only local rank==0
     local_rank = ParallelEnv().local_rank
-    if local_rank == 0:
+    if local_rank == 0 and not logger.hasHandlers():
         ch = logging.StreamHandler(stream=sys.stdout)
         ch.setLevel(log_level)
 

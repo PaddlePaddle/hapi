@@ -39,6 +39,23 @@ def flip(image, code):
             -1 : Flip horizontally and vertically
             0 : Flip vertically
             1 : Flip horizontally
+
+    Examples:
+        .. code-block:: python
+
+            import numpy as np
+            from hapi.vision.transforms import functional as F
+
+            fake_img = np.random.rand(224, 224, 3)
+
+            # flip horizontally and vertically
+            F.flip(fake_img, -1)
+
+            # flip vertically
+            F.flip(fake_img, 0)
+
+            # flip horizontally
+            F.flip(fake_img, 1)
     """
     return cv2.flip(image, flipCode=code)
 
@@ -51,6 +68,18 @@ def resize(img, size, interpolation=cv2.INTER_LINEAR):
         input: Input data, could be image or masks, with (H, W, C) shape
         size: Target size of input data, with (height, width) shape.
         interpolation: Interpolation method.
+
+    Examples:
+        .. code-block:: python
+
+            import numpy as np
+            from hapi.vision.transforms import functional as F
+
+            fake_img = np.random.rand(256, 256, 3)
+
+            F.resize(fake_img, 224)
+
+            F.resize(fake_img, (200, 150))
     """
 
     if isinstance(interpolation, Sequence):

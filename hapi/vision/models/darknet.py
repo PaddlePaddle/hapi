@@ -144,6 +144,13 @@ class DarkNet(Model):
                             will not be defined. Default: 1000.
         with_pool (bool): use pool before the last fc layer or not. Default: True.
         classifier_activation (str): activation for the last fc layer. Default: 'softmax'.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import DarkNet
+
+            model = DarkNet()
     """
 
     def __init__(self,
@@ -233,5 +240,17 @@ def darknet53(pretrained=False, **kwargs):
         input_channels (bool): channel number of input data, default 3. 
         pretrained (bool): If True, returns a model pre-trained on ImageNet,
             default True.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import darknet53
+
+            # build model
+            model = darknet53()
+
+            #build model and load imagenet pretrained weight
+            model = darknet53(pretrained=True)
+            
     """
     return _darknet('darknet53', 53, pretrained, **kwargs)

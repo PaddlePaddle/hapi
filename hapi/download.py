@@ -55,6 +55,15 @@ def get_weights_path_from_url(url, md5sum=None):
     
     Returns:
         str: a local path to save downloaded weights.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.download import get_weights_path_from_url
+
+            resnet18_pretrained_weight_url = 'https://paddle-hapi.bj.bcebos.com/models/resnet18.pdparams'
+            local_weight_path = get_weights_path_from_url(resnet18_pretrained_weight_url)
+
     """
     path = get_path_from_url(url, WEIGHTS_HOME, md5sum)
     return path
