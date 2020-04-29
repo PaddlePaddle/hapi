@@ -201,24 +201,10 @@ class ProgBarLogger(Callback):
             from hapi.callbacks import ProgBarLogger
             from hapi.model import Input, set_device
 
-            class MnistDataset(MNIST):
-                def __init__(self, mode, return_label=True):
-                    super(MnistDataset, self).__init__(mode=mode)
-                    self.return_label = return_label
-
-                def __getitem__(self, idx):
-                    img = np.reshape(self.images[idx], [1, 28, 28])
-                    if self.return_label:
-                        return img, np.array(self.labels[idx]).astype('int64')
-                    return img,
-
-                def __len__(self):
-                    return len(self.images)
-
             inputs = [Input([-1, 1, 28, 28], 'float32', name='image')]
             labels = [Input([None, 1], 'int64', name='label')]
 
-            train_dataset = MnistDataset(mode='train')
+            train_dataset = MNIST(mode='train')
 
             model = LeNet()
 
@@ -240,6 +226,9 @@ class ProgBarLogger(Callback):
         self.verbose = verbose
         self.log_freq = log_freq
 
+    def _is_print(self):
+        return self.verbose and ParallelEnv().local_rank == 0
+
     def on_train_begin(self, logs=None):
         self.epochs = self.params['epochs']
         assert self.epochs
@@ -250,7 +239,7 @@ class ProgBarLogger(Callback):
         self.steps = self.params['steps']
         self.epoch = epoch
         self.train_step = 0
-        if self.verbose and self.epochs and ParallelEnv().local_rank == 0:
+        if self.epochs and self._is_print():
             print('Epoch %d/%d' % (epoch + 1, self.epochs))
         self.train_progbar = ProgressBar(num=self.steps, verbose=self.verbose)
 
@@ -270,17 +259,13 @@ class ProgBarLogger(Callback):
         logs = logs or {}
         self.train_step += 1
 
-        if self.train_step % self.log_freq == 0 and self.verbose and ParallelEnv(
-        ).local_rank == 0:
+        if self._is_print() and self.train_step % self.log_freq == 0:
             if self.steps is None or self.train_step < self.steps:
                 self._updates(logs, 'train')
 
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
-        if self.verbose == 1 and ParallelEnv().local_rank == 0:
-            self._updates(logs, 'train')
-        elif self.train_step % self.log_freq != 0 and self.verbose and ParallelEnv(
-        ).local_rank == 0:
+        if self._is_print() and (self.steps is not None):
             self._updates(logs, 'train')
 
     def on_eval_begin(self, logs=None):
@@ -291,7 +276,7 @@ class ProgBarLogger(Callback):
 
         self.eval_progbar = ProgressBar(
             num=self.eval_steps, verbose=self.verbose)
-        if ParallelEnv().local_rank == 0:
+        if self._is_print():
             print('Eval begin...')
 
     def on_eval_batch_end(self, step, logs=None):
@@ -300,8 +285,7 @@ class ProgBarLogger(Callback):
         samples = logs.get('batch_size', 1)
         self.evaled_samples += samples
 
-        if self.eval_step % self.log_freq == 0 and self.verbose and ParallelEnv(
-        ).local_rank == 0:
+        if self._is_print() and self.eval_step % self.log_freq == 0:
             if self.eval_steps is None or self.eval_step < self.eval_steps:
                 self._updates(logs, 'eval')
 
@@ -321,21 +305,19 @@ class ProgBarLogger(Callback):
         samples = logs.get('batch_size', 1)
         self.tested_samples += samples
 
-        if self.test_step % self.log_freq == 0 and self.verbose and ParallelEnv(
-        ).local_rank == 0:
+        if self.test_step % self.log_freq == 0 and self._is_print():
             if self.test_steps is None or self.test_step < self.test_steps:
                 self._updates(logs, 'test')
 
     def on_eval_end(self, logs=None):
         logs = logs or {}
-        if self.verbose and ParallelEnv().local_rank == 0:
-            if self.eval_step % self.log_freq != 0 or self.verbose == 1:
-                self._updates(logs, 'eval')
+        if self._is_print() and (self.steps is not None):
+            self._updates(logs, 'eval')
             print('Eval samples: %d' % (self.evaled_samples))
 
     def on_test_end(self, logs=None):
         logs = logs or {}
-        if self.verbose and ParallelEnv().local_rank == 0:
+        if self._is_print():
             if self.test_step % self.log_freq != 0 or self.verbose == 1:
                 self._updates(logs, 'test')
             print('Predict samples: %d' % (self.tested_samples))
@@ -362,24 +344,10 @@ class ModelCheckpoint(Callback):
             from hapi.callbacks import ModelCheckpoint
             from hapi.model import Input, set_device
 
-            class MnistDataset(MNIST):
-                def __init__(self, mode, return_label=True):
-                    super(MnistDataset, self).__init__(mode=mode)
-                    self.return_label = return_label
-
-                def __getitem__(self, idx):
-                    img = np.reshape(self.images[idx], [1, 28, 28])
-                    if self.return_label:
-                        return img, np.array(self.labels[idx]).astype('int64')
-                    return img,
-
-                def __len__(self):
-                    return len(self.images)
-
             inputs = [Input([-1, 1, 28, 28], 'float32', name='image')]
             labels = [Input([None, 1], 'int64', name='label')]
 
-            train_dataset = MnistDataset(mode='train')
+            train_dataset = MNIST(mode='train')
 
             model = LeNet()
 
