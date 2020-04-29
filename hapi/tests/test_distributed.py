@@ -30,40 +30,21 @@ import paddle.distributed.cloud_utils as cloud_utils
 def get_cluster_from_args(selected_gpus):
     cluster_node_ips = '127.0.0.1'
     node_ip = '127.0.0.1'
-    use_paddlecloud = False
-    started_port = None
+
     node_ips = [x.strip() for x in cluster_node_ips.split(',')]
 
-    node_rank = node_ips.index(node_ip)
+    node_ips.index(node_ip)
 
     free_ports = None
-    if not use_paddlecloud and len(node_ips) <= 1 and started_port is None:
-        free_ports = find_free_ports(len(selected_gpus))
-        if free_ports is not None:
-            free_ports = list(free_ports)
-    else:
-        started_port = 6070
 
-        free_ports = [
-            x for x in range(started_port, started_port + len(selected_gpus))
-        ]
+    free_ports = find_free_ports(len(selected_gpus))
+    if free_ports is not None:
+        free_ports = list(free_ports)
     return get_cluster(node_ips, node_ip, free_ports, selected_gpus)
 
 
 def get_gpus(selected_gpus):
-    cuda_visible_devices = os.getenv("CUDA_VISIBLE_DEVICES")
-    if cuda_visible_devices is None or cuda_visible_devices == "":
-        selected_gpus = [x.strip() for x in selected_gpus.split(',')]
-    else:
-        cuda_visible_devices_list = cuda_visible_devices.split(',')
-        for x in selected_gpus.split(','):
-            assert x in cuda_visible_devices_list, "Can't find "\
-            "your selected_gpus %s in CUDA_VISIBLE_DEVICES[%s]."\
-            % (x, cuda_visible_devices)
-        selected_gpus = [
-            cuda_visible_devices_list.index(x.strip())
-            for x in selected_gpus.split(',')
-        ]
+    selected_gpus = [x.strip() for x in selected_gpus.split(',')]
     return selected_gpus
 
 
@@ -94,7 +75,7 @@ def start_local_trainers(cluster,
 
         print("trainer proc env:{}".format(current_env))
 
-        cmd = "python -m coverage run --branch -p " + training_script
+        cmd = "python -u " + training_script
 
         print("start trainer proc:{} env:{}".format(cmd, proc_env))
 

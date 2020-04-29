@@ -35,7 +35,7 @@ def flip(image, code):
 
     Args:
         image: Input image, with (H, W, C) shape
-        code: code that indicates the type of flip.
+        code: Code that indicates the type of flip.
             -1 : Flip horizontally and vertically
             0 : Flip vertically
             1 : Flip horizontally

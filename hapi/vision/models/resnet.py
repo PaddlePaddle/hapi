@@ -36,7 +36,7 @@ model_urls = {
     'resnet34': ('https://paddle-hapi.bj.bcebos.com/models/resnet34.pdparams',
                  '46bc9f7c3dd2e55b7866285bee91eff3'),
     'resnet50': ('https://paddle-hapi.bj.bcebos.com/models/resnet50.pdparams',
-                 '0884c9087266496c41c60d14a96f8530'),
+                 '5ce890a9ad386df17cf7fe2313dca0a1'),
     'resnet101':
     ('https://paddle-hapi.bj.bcebos.com/models/resnet101.pdparams',
      'fb07a451df331e4b0bb861ed97c3a9b9'),

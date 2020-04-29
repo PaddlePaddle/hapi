@@ -48,7 +48,7 @@ class MnistDataset(MNIST):
         return len(self.images)
 
 
-def get_predict_accuracy(pred, gt):
+def compute_accuracy(pred, gt):
     pred = np.argmax(pred, -1)
     gt = np.array(gt)
 
@@ -58,7 +58,7 @@ def get_predict_accuracy(pred, gt):
 
 
 class TestModel(unittest.TestCase):
-    def fit(self, dynamic):
+    def run(self, dynamic):
         device = set_device('gpu')
         fluid.enable_dygraph(device) if dynamic else None
 
@@ -74,7 +74,9 @@ class TestModel(unittest.TestCase):
 
         model = LeNet()
         optim = fluid.optimizer.Momentum(
-            learning_rate=0.01, momentum=.9, parameter_list=model.parameters())
+            learning_rate=0.001,
+            momentum=.9,
+            parameter_list=model.parameters())
         loss = CrossEntropy()
         model.prepare(optim, loss, Accuracy(), inputs, labels, device=device)
         cbk = ProgBarLogger(50)
@@ -92,15 +94,15 @@ class TestModel(unittest.TestCase):
 
         np.testing.assert_equal(output[0].shape[0], len(test_dataset))
 
-        acc = get_predict_accuracy(output[0], val_dataset.labels)
+        acc = compute_accuracy(output[0], val_dataset.labels)
 
         np.testing.assert_allclose(acc, eval_result['acc'])
 
     def test_multiple_gpus_static(self):
-        self.fit(False)
+        self.run(False)
 
     def test_multiple_gpus_dygraph(self):
-        self.fit(True)
+        self.run(True)
 
 
 if __name__ == '__main__':
