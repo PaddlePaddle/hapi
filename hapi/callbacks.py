@@ -124,27 +124,27 @@ class Callback(object):
         self.model = model
 
     def on_train_begin(self, logs=None):
-        """Called at the start of train.
+        """Called at the start of training.
         """
 
     def on_train_end(self, logs=None):
-        """Called at the end of train.
+        """Called at the end of training.
         """
 
     def on_eval_begin(self, logs=None):
-        """Called at the start of eval.
+        """Called at the start of evaluation.
         """
 
     def on_eval_end(self, logs=None):
-        """Called at the end of train.
+        """Called at the end of evaluation.
         """
 
     def on_test_begin(self, logs=None):
-        """Called at the test of begin.
+        """Called at the beginning of predict.
         """
 
     def on_test_end(self, logs=None):
-        """Called at the test of end.
+        """Called at the end of predict.
         """
 
     def on_epoch_begin(self, epoch, logs=None):
@@ -156,35 +156,35 @@ class Callback(object):
         """
 
     def on_train_batch_begin(self, step, logs=None):
-        """Called at the beginning of each batch in `train` mode.
+        """Called at the beginning of each batch in training.
         """
 
     def on_train_batch_end(self, step, logs=None):
-        """Called at the end of each batch in `train` mode.
+        """Called at the end of each batch in training.
         """
 
     def on_eval_batch_begin(self, step, logs=None):
-        """Called at the beginning of each batch in `eval` mode.
+        """Called at the beginning of each batch in evaluation.
         """
 
     def on_eval_batch_end(self, step, logs=None):
-        """Called at the end of each batch in `eval` mode.
+        """Called at the end of each batch in evaluation.
         """
 
     def on_test_batch_begin(self, step, logs=None):
-        """Called at the beginning of each batch in `test` mode.
+        """Called at the beginning of each batch in predict.
         """
 
     def on_test_batch_end(self, step, logs=None):
-        """Called at the end of each batch in `test` mode.
+        """Called at the end of each batch in predict.
         """
 
 
 class ProgBarLogger(Callback):
     """Logger callback function
     Args:
-        log_freq (int): The frequency, in number of steps, the training logs
-                are printed. Default: 1.
+        log_freq (int): The frequency, in number of steps, the logs such as `loss`, 
+                `metrics` are printed. Default: 1.
         verbose (int): The verbosity mode, should be 0, 1, or 2.
                 0 = silent, 1 = progress bar, 2 = one line per epoch. Default: 2.
 
