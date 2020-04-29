@@ -34,13 +34,10 @@ def has_valid_extension(filename, extensions):
     return filename.lower().endswith(extensions)
 
 
-def make_dataset(dir, class_to_idx, extensions=None, is_valid_file=None):
+def make_dataset(dir, class_to_idx, extensions, is_valid_file=None):
     images = []
     dir = os.path.expanduser(dir)
-    if not ((extensions is None) ^ (is_valid_file is None)):
-        raise ValueError(
-            "Both extensions and is_valid_file cannot be None or not None at the same time"
-        )
+
     if extensions is not None:
 
         def is_valid_file(x):
@@ -200,10 +197,7 @@ class ImageFolder(Dataset):
 
         samples = []
         path = os.path.expanduser(root)
-        if not ((extensions is None) ^ (is_valid_file is None)):
-            raise ValueError(
-                "Both extensions and is_valid_file cannot be None or not None at the same time"
-            )
+
         if extensions is not None:
 
             def is_valid_file(x):

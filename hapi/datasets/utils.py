@@ -25,5 +25,5 @@ def _check_exists_and_download(path, url, md5, module_name, download=True):
     if download:
         return paddle.dataset.common.download(url, module_name, md5)
     else:
-        raise FileNotFoundError(
-            '{} not exists and auto download disabled'.format(path))
+        raise ValueError('{} not exists and auto download disabled'.format(
+            path))
