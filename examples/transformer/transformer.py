@@ -18,10 +18,10 @@ import numpy as np
 
 import paddle.fluid as fluid
 import paddle.fluid.layers as layers
-from paddle.fluid.dygraph import Embedding, LayerNorm, Linear, Layer, to_variable
+from paddle.fluid.dygraph import Embedding, LayerNorm, Linear, Layer
 from paddle.fluid.dygraph.learning_rate_scheduler import LearningRateDecay
 from hapi.model import Model, CrossEntropy, Loss
-from hapi.text import TransformerBeamSearchDecoder, DynamicDecode
+from hapi.text import TransformerCell, TransformerBeamSearchDecoder, DynamicDecode
 
 
 def position_encoding_init(n_position, d_pos_vec):
@@ -606,26 +606,6 @@ class Transformer(Model):
         return predict
 
 
-class TransfomerCell(object):
-    """
-    Let inputs=(trg_word, trg_pos), states=cache to make Transformer can be
-    used as RNNCell
-    """
-
-    def __init__(self, decoder):
-        self.decoder = decoder
-
-    def __call__(self, inputs, states, trg_src_attn_bias, enc_output,
-                 static_caches):
-        trg_word, trg_pos = inputs
-        for cache, static_cache in zip(states, static_caches):
-            cache.update(static_cache)
-        logits = self.decoder(trg_word, trg_pos, None, trg_src_attn_bias,
-                              enc_output, states)
-        new_states = [{"k": cache["k"], "v": cache["v"]} for cache in states]
-        return logits, new_states
-
-
 class InferTransformer(Transformer):
     """
     model for prediction
@@ -657,7 +637,7 @@ class InferTransformer(Transformer):
         self.beam_size = args.pop("beam_size")
         self.max_out_len = args.pop("max_out_len")
         super(InferTransformer, self).__init__(**args)
-        cell = TransfomerCell(self.decoder)
+        cell = TransformerCell(self.decoder)
         self.beam_search_decoder = DynamicDecode(
             TransformerBeamSearchDecoder(
                 cell, bos_id, eos_id, beam_size, var_dim_in_state=2),

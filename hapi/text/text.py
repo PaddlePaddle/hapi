@@ -48,8 +48,8 @@ __all__ = [
     'RNNCell', 'BasicLSTMCell', 'BasicGRUCell', 'RNN', 'DynamicDecode',
     'BeamSearchDecoder', 'MultiHeadAttention', 'FFN',
     'TransformerEncoderLayer', 'TransformerEncoder', 'TransformerDecoderLayer',
-    'TransformerDecoder', 'TransformerBeamSearchDecoder', 'Linear_chain_crf',
-    'Crf_decoding', 'SequenceTagging', 'GRUEncoderLayer'
+    'TransformerDecoder', 'TransformerCell', 'TransformerBeamSearchDecoder',
+    'Linear_chain_crf', 'Crf_decoding', 'SequenceTagging', 'GRUEncoderLayer'
 ]
 
 
@@ -1002,7 +1002,7 @@ class DynamicDecode(Layer):
                 **kwargs)
 
 
-class TransfomerCell(object):
+class TransformerCell(Layer):
     """
     Let inputs=(trg_word, trg_pos), states=cache to make Transformer can be
     used as RNNCell
