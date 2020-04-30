@@ -56,9 +56,9 @@ class Metric(object):
                        |                      ||
                  outputs labels               ||
                        |                      ||    tensor data
-            {Metric.add_metric_op}            ||
+             {Metric.add_metric_op}           ||
                        |                      ||
-                  metric states               ||
+              metric states(tensor)           ||
                        |                      ||
                 {fetch as numpy}              || ------------------
                        |                      ||
