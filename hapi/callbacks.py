@@ -296,7 +296,7 @@ class ProgBarLogger(Callback):
         self.tested_samples = 0
         self.test_progbar = ProgressBar(
             num=self.test_steps, verbose=self.verbose)
-        if ParallelEnv().local_rank == 0:
+        if self._is_print():
             print('Predict begin...')
 
     def on_test_batch_end(self, step, logs=None):
