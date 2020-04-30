@@ -132,7 +132,7 @@ python predict.py \
 ```sh
 export CUDA_VISIBLE_DEVICES=0
 
-python infer.py \
+python predict.py \
     --attention True \
     --src_lang en --tar_lang vi \
     --num_layers 2 \
