@@ -21,7 +21,7 @@ import paddle.fluid.layers as layers
 from paddle.fluid.dygraph import Embedding, LayerNorm, Linear, Layer
 from paddle.fluid.dygraph.learning_rate_scheduler import LearningRateDecay
 from hapi.model import Model, CrossEntropy, Loss
-from hapi.text import TransformerCell, TransformerBeamSearchDecoder, DynamicDecode
+from hapi.text import TransformerBeamSearchDecoder, DynamicDecode
 
 
 def position_encoding_init(n_position, d_pos_vec):
@@ -604,6 +604,27 @@ class Transformer(Model):
         predict = self.decoder(trg_word, trg_pos, trg_slf_attn_bias,
                                trg_src_attn_bias, enc_output)
         return predict
+
+
+class TransformerCell(Layer):
+    """
+    Let inputs=(trg_word, trg_pos), states=cache to make Transformer can be
+    used as RNNCell
+    """
+
+    def __init__(self, decoder):
+        super(TransformerCell, self).__init__()
+        self.decoder = decoder
+
+    def forward(self, inputs, states, trg_src_attn_bias, enc_output,
+                static_caches):
+        trg_word, trg_pos = inputs
+        for cache, static_cache in zip(states, static_caches):
+            cache.update(static_cache)
+        logits = self.decoder(trg_word, trg_pos, None, trg_src_attn_bias,
+                              enc_output, states)
+        new_states = [{"k": cache["k"], "v": cache["v"]} for cache in states]
+        return logits, new_states
 
 
 class InferTransformer(Transformer):

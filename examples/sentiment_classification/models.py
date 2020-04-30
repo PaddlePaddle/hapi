@@ -16,12 +16,12 @@ from paddle.fluid.dygraph.nn import Linear, Embedding
 from paddle.fluid.dygraph.base import to_variable
 import numpy as np
 from hapi.model import Model
-from hapi.text.text import GRUEncoderLayer as BiGRUEncoder
+from hapi.text.text import GRUEncoder as BiGRUEncoder
 from hapi.text.test import BOWEncoder, CNNEncoder, GRUEncoder
 
 
 class CNN(Model):
-    def __init__(self,  dict_dim, batch_size, seq_len):
+    def __init__(self, dict_dim, batch_size, seq_len):
         super(CNN, self).__init__()
         self.dict_dim = dict_dim
         self.emb_dim = 128
@@ -36,15 +36,19 @@ class CNN(Model):
             dict_size=self.dict_dim + 1,
             emb_dim=self.emb_dim,
             seq_len=self.seq_len,
-            filter_size= self.win_size,
-            num_filters= self.hid_dim,
-            hidden_dim= self.hid_dim,
+            filter_size=self.win_size,
+            num_filters=self.hid_dim,
+            hidden_dim=self.hid_dim,
             padding_idx=None,
             act='tanh')
-        self._fc1 = Linear(input_dim = self.hid_dim*self.seq_len, output_dim=self.fc_hid_dim, act="softmax")
-        self._fc_prediction = Linear(input_dim = self.fc_hid_dim,
-                                 output_dim = self.class_dim,
-                                 act="softmax")
+        self._fc1 = Linear(
+            input_dim=self.hid_dim * self.seq_len,
+            output_dim=self.fc_hid_dim,
+            act="softmax")
+        self._fc_prediction = Linear(
+            input_dim=self.fc_hid_dim,
+            output_dim=self.class_dim,
+            act="softmax")
 
     def forward(self, inputs):
         conv_3 = self._encoder(inputs)
@@ -69,11 +73,14 @@ class BOW(Model):
             padding_idx=None,
             bow_dim=self.hid_dim,
             seq_len=self.seq_len)
-        self._fc1 = Linear(input_dim = self.hid_dim, output_dim=self.hid_dim, act="tanh")
-        self._fc2 = Linear(input_dim = self.hid_dim, output_dim=self.fc_hid_dim, act="tanh")
-        self._fc_prediction = Linear(input_dim = self.fc_hid_dim,
-                                 output_dim = self.class_dim,
-                                 act="softmax")
+        self._fc1 = Linear(
+            input_dim=self.hid_dim, output_dim=self.hid_dim, act="tanh")
+        self._fc2 = Linear(
+            input_dim=self.hid_dim, output_dim=self.fc_hid_dim, act="tanh")
+        self._fc_prediction = Linear(
+            input_dim=self.fc_hid_dim,
+            output_dim=self.class_dim,
+            act="softmax")
 
     def forward(self, inputs):
         bow_1 = self._encoder(inputs)
@@ -94,10 +101,12 @@ class GRU(Model):
         self.class_dim = 2
         self.batch_size = batch_size
         self.seq_len = seq_len
-        self._fc1 = Linear(input_dim=self.hid_dim, output_dim=self.fc_hid_dim, act="tanh")
-        self._fc_prediction = Linear(input_dim=self.fc_hid_dim,
-                                 output_dim=self.class_dim,
-                                 act="softmax")
+        self._fc1 = Linear(
+            input_dim=self.hid_dim, output_dim=self.fc_hid_dim, act="tanh")
+        self._fc_prediction = Linear(
+            input_dim=self.fc_hid_dim,
+            output_dim=self.class_dim,
+            act="softmax")
         self._encoder = GRUEncoder(
             dict_size=self.dict_dim + 1,
             emb_dim=self.emb_dim,
@@ -112,7 +121,7 @@ class GRU(Model):
         prediction = self._fc_prediction(fc_1)
         return prediction
 
-        
+
 class BiGRU(Model):
     def __init__(self, dict_dim, batch_size, seq_len):
         super(BiGRU, self).__init__()
@@ -130,11 +139,13 @@ class BiGRU(Model):
             is_sparse=False)
         h_0 = np.zeros((self.batch_size, self.hid_dim), dtype="float32")
         h_0 = to_variable(h_0)
-        self._fc1 = Linear(input_dim = self.hid_dim, output_dim=self.hid_dim*3)
-        self._fc2 = Linear(input_dim = self.hid_dim*2, output_dim=self.fc_hid_dim, act="tanh")
-        self._fc_prediction = Linear(input_dim=self.fc_hid_dim,
-                                 output_dim=self.class_dim,
-                                 act="softmax")
+        self._fc1 = Linear(input_dim=self.hid_dim, output_dim=self.hid_dim * 3)
+        self._fc2 = Linear(
+            input_dim=self.hid_dim * 2, output_dim=self.fc_hid_dim, act="tanh")
+        self._fc_prediction = Linear(
+            input_dim=self.fc_hid_dim,
+            output_dim=self.class_dim,
+            act="softmax")
         self._encoder = BiGRUEncoder(
             grnn_hidden_dim=self.hid_dim,
             input_dim=self.hid_dim * 3,
@@ -144,7 +155,8 @@ class BiGRU(Model):
 
     def forward(self, inputs):
         emb = self.embedding(inputs)
-        emb = fluid.layers.reshape(emb, shape=[self.batch_size, -1, self.hid_dim])
+        emb = fluid.layers.reshape(
+            emb, shape=[self.batch_size, -1, self.hid_dim])
         fc_1 = self._fc1(emb)
         encoded_vector = self._encoder(fc_1)
         encoded_vector = fluid.layers.tanh(encoded_vector)

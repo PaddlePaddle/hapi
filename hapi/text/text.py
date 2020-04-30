@@ -49,7 +49,7 @@ __all__ = [
     'BeamSearchDecoder', 'MultiHeadAttention', 'FFN',
     'TransformerEncoderLayer', 'TransformerEncoder', 'TransformerDecoderLayer',
     'TransformerDecoder', 'TransformerCell', 'TransformerBeamSearchDecoder',
-    'Linear_chain_crf', 'Crf_decoding', 'SequenceTagging', 'GRUEncoderLayer'
+    'LinearChainCRF', 'CRFDecoding', 'SequenceTagging', 'GRUEncoder'
 ]
 
 
@@ -1008,18 +1008,38 @@ class TransformerCell(Layer):
     used as RNNCell
     """
 
-    def __init__(self, decoder):
+    def __init__(self, decoder, embedding_fn=None, output_fn=None):
+        super(TransformerCell, self).__init__()
         self.decoder = decoder
+        self.embedding_fn = embedding_fn
+        self.output_fn = output_fn
 
-    def __call__(self, inputs, states, trg_src_attn_bias, enc_output,
-                 static_caches):
+    def forward(self, inputs, states, trg_src_attn_bias, enc_output,
+                static_caches):
         trg_word, trg_pos = inputs
         for cache, static_cache in zip(states, static_caches):
             cache.update(static_cache)
-        logits = self.decoder(trg_word, trg_pos, None, trg_src_attn_bias,
-                              enc_output, states)
+        if self.embedding_fn is not None:
+            dec_input = self.embedding_fn(trg_word, trg_pos)
+            outputs = self.decoder(dec_input, enc_output, None,
+                                   trg_src_attn_bias, states)
+        else:
+            outputs = self.decoder(trg_word, trg_pos, enc_output, None,
+                                   trg_src_attn_bias, states)
+        if self.output_fn is not None:
+            outputs = self.output_fn(outputs)
+        if len(outputs.shape) == 3:
+            # squeeze to adapt to BeamSearchDecoder which use 2D logits 
+            outputs = layers.squeeze(outputs, [1])
         new_states = [{"k": cache["k"], "v": cache["v"]} for cache in states]
-        return logits, new_states
+        return outputs, new_states
+
+    @property
+    def state_shape(self):
+        return [{
+            "k": [self.n_head, 0, self.d_key],
+            "v": [self.n_head, 0, self.d_value],
+        } for i in range(len(self.n_layer))]
 
 
 class TransformerBeamSearchDecoder(layers.BeamSearchDecoder):
@@ -1521,6 +1541,11 @@ class TransformerDecoder(Layer):
                  preprocess_cmd, postprocess_cmd):
         super(TransformerDecoder, self).__init__()
 
+        self.n_layer = n_layer
+        self.n_head = n_head
+        self.d_key = d_key
+        self.d_value = d_value
+
         self.decoder_layers = list()
         for i in range(n_layer):
             self.decoder_layers.append(
@@ -1554,6 +1579,20 @@ class TransformerDecoder(Layer):
                     decoder_layer.cross_attn.cal_kv(enc_output, enc_output)))
             for decoder_layer in self.decoder_layers
         ]
+
+    def prepare_incremental_cache(self, enc_output):
+        return [{
+            "k": layers.fill_constant_batch_size_like(
+                input=enc_output,
+                shape=[-1, self.n_head, 0, self.d_key],
+                dtype=enc_output.dtype,
+                value=0),
+            "v": layers.fill_constant_batch_size_like(
+                input=enc_output,
+                shape=[-1, self.n_head, 0, self.d_value],
+                dtype=enc_output.dtype,
+                value=0),
+        } for i in range(self.n_layer)]
 
 
 #TODO: we should merge GRUCell with BasicGRUCell
@@ -1651,9 +1690,9 @@ class BiGRU(fluid.dygraph.Layer):
         return bi_merge
 
 
-class Linear_chain_crf(fluid.dygraph.Layer):
+class LinearChainCRF(Layer):
     def __init__(self, param_attr, size=None, is_test=False, dtype='float32'):
-        super(Linear_chain_crf, self).__init__()
+        super(LinearChainCRF, self).__init__()
 
         self._param_attr = param_attr
         self._dtype = dtype
@@ -1702,9 +1741,9 @@ class Linear_chain_crf(fluid.dygraph.Layer):
         return log_likelihood
 
 
-class Crf_decoding(fluid.dygraph.Layer):
+class CRFDecoding(Layer):
     def __init__(self, param_attr, size=None, is_test=False, dtype='float32'):
-        super(Crf_decoding, self).__init__()
+        super(CRFDecoding, self).__init__()
 
         self._dtype = dtype
         self._size = size
@@ -1742,7 +1781,7 @@ class Crf_decoding(fluid.dygraph.Layer):
         return viterbi_path
 
 
-class GRUEncoderLayer(Layer):
+class GRUEncoder(Layer):
     def __init__(self,
                  input_dim,
                  grnn_hidden_dim,
@@ -1750,7 +1789,7 @@ class GRUEncoderLayer(Layer):
                  num_layers=1,
                  h_0=None,
                  is_bidirection=False):
-        super(GRUEncoderLayer, self).__init__()
+        super(GRUEncoder, self).__init__()
         self.h_0 = h_0
         self.num_layers = num_layers
         self.is_bidirection = is_bidirection
@@ -1849,7 +1888,7 @@ class SequenceTagging(fluid.dygraph.Layer):
             force_cpu=True,
             name='h_0')
 
-        self.gru_encoder = GRUEncoderLayer(
+        self.gru_encoder = GRUEncoder(
             input_dim=self.grnn_hidden_dim,
             grnn_hidden_dim=self.grnn_hidden_dim,
             init_bound=self.init_bound,
@@ -1866,12 +1905,12 @@ class SequenceTagging(fluid.dygraph.Layer):
                 regularizer=fluid.regularizer.L2DecayRegularizer(
                     regularization_coeff=1e-4)))
 
-        self.linear_chain_crf = Linear_chain_crf(
+        self.linear_chain_crf = LinearChainCRF(
             param_attr=fluid.ParamAttr(
                 name='linear_chain_crfw', learning_rate=self.crf_lr),
             size=self.num_labels)
 
-        self.crf_decoding = Crf_decoding(
+        self.crf_decoding = CRFDecoding(
             param_attr=fluid.ParamAttr(
                 name='crfw', learning_rate=self.crf_lr),
             size=self.num_labels)

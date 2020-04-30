@@ -25,8 +25,8 @@ from paddle.fluid.dygraph import Embedding, Linear, Layer
 from paddle.fluid.layers import BeamSearchDecoder
 import hapi.text as text
 from hapi.model import Model, Input, set_device
-from hapi.text import BasicLSTMCell, BasicGRUCell, RNN, DynamicDecode, MultiHeadAttention, TransformerEncoder
-from hapi.text import *
+# from hapi.text.text import BasicLSTMCell, BasicGRUCell, RNN, DynamicDecode, MultiHeadAttention, TransformerEncoder, TransformerCell
+from hapi.text.text import *
 
 
 def sigmoid(x):
@@ -187,7 +187,7 @@ class TestBasicLSTM(ModuleApiTest):
             Input(
                 [None, None, self.inputs[-1].shape[-1]],
                 "float32",
-                name="input")
+                name="input"),
         ]
         return inputs
 
@@ -216,7 +216,7 @@ class TestBasicGRU(ModuleApiTest):
             Input(
                 [None, None, self.inputs[-1].shape[-1]],
                 "float32",
-                name="input")
+                name="input"),
         ]
         return inputs
 
@@ -270,10 +270,9 @@ class TestBeamSearch(ModuleApiTest):
             Input(
                 [None, self.inputs[0].shape[-1]],
                 "float32",
-                name="init_hidden"), Input(
-                    [None, self.inputs[1].shape[-1]],
-                    "float32",
-                    name="init_cell")
+                name="init_hidden"),
+            Input(
+                [None, self.inputs[1].shape[-1]], "float32", name="init_cell"),
         ]
         return inputs
 
@@ -328,10 +327,11 @@ class TestTransformerEncoder(ModuleApiTest):
             Input(
                 [None, None, self.inputs[0].shape[-1]],
                 "float32",
-                name="enc_input"), Input(
-                    [None, self.inputs[1].shape[1], None, None],
-                    "float32",
-                    name="attn_bias")
+                name="enc_input"),
+            Input(
+                [None, self.inputs[1].shape[1], None, None],
+                "float32",
+                name="attn_bias"),
         ]
         return inputs
 
@@ -395,16 +395,19 @@ class TestTransformerDecoder(TestTransformerEncoder):
             Input(
                 [None, None, self.inputs[0].shape[-1]],
                 "float32",
-                name="dec_input"), Input(
-                    [None, None, self.inputs[0].shape[-1]],
-                    "float32",
-                    name="enc_output"), Input(
-                        [None, self.inputs[-1].shape[1], None, None],
-                        "float32",
-                        name="self_attn_bias"), Input(
-                            [None, self.inputs[-1].shape[1], None, None],
-                            "float32",
-                            name="cross_attn_bias")
+                name="dec_input"),
+            Input(
+                [None, None, self.inputs[0].shape[-1]],
+                "float32",
+                name="enc_output"),
+            Input(
+                [None, self.inputs[-1].shape[1], None, None],
+                "float32",
+                name="self_attn_bias"),
+            Input(
+                [None, self.inputs[-1].shape[1], None, None],
+                "float32",
+                name="cross_attn_bias"),
         ]
         return inputs
 
@@ -414,16 +417,21 @@ class TestTransformerDecoder(TestTransformerEncoder):
 
 class TestTransformerBeamSearchDecoder(ModuleApiTest):
     def setUp(self):
-        shape = (8, 32)
         self.inputs = [
-            np.random.random(shape).astype("float32"),
-            np.random.random(shape).astype("float32")
+            # encoder output: [batch_size, seq_len, hidden_size]
+            np.random.random([2, 5, 128]).astype("float32"),
+            # cross attention bias: [batch_size, n_head, seq_len, seq_len]
+            np.random.randint(0, 1, [2, 2, 1, 5]).astype("float32") * -1e9
         ]
         self.outputs = None
         self.attrs = {
             "vocab_size": 100,
-            "embed_dim": 32,
-            "hidden_size": 32,
+            "n_layer": 2,
+            "n_head": 2,
+            "d_key": 64,
+            "d_value": 64,
+            "d_model": 128,
+            "d_inner_hid": 128
         }
         self.param_states = {}
 
@@ -445,13 +453,24 @@ class TestTransformerBeamSearchDecoder(ModuleApiTest):
                    eos_id=1,
                    beam_size=4,
                    max_step_num=20):
-        embedder = Embedding(size=[vocab_size, d_model])
+        self.beam_size = beam_size
+
+        def embeder_init(self, size):
+            Layer.__init__(self)
+            self.embedder = Embedding(size)
+
+        Embedder = type("Embedder", (Layer, ), {
+            "__init__": embeder_init,
+            "forward": lambda self, word, pos: self.embedder(word)
+        })
+        embedder = Embedder(size=[vocab_size, d_model])
         output_layer = Linear(d_model, vocab_size)
-        decoder = TransformerDecoder(n_layer, n_head, d_key, d_value, d_model,
-                                     d_inner_hid, prepostprocess_dropout,
-                                     attention_dropout, relu_dropout,
-                                     preprocess_cmd, postprocess_cmd)
-        transformer_cell = TransformerCell(decoder)
+        self.decoder = TransformerDecoder(
+            n_layer, n_head, d_key, d_value, d_model, d_inner_hid,
+            prepostprocess_dropout, attention_dropout, relu_dropout,
+            preprocess_cmd, postprocess_cmd)
+        transformer_cell = TransformerCell(self.decoder, embedder,
+                                           output_layer)
         self.beam_search_decoder = DynamicDecode(
             TransformerBeamSearchDecoder(
                 transformer_cell,
@@ -464,23 +483,12 @@ class TestTransformerBeamSearchDecoder(ModuleApiTest):
 
     @staticmethod
     def model_forward(self, enc_output, trg_src_attn_bias):
-        caches = [{
-            "k": layers.fill_constant_batch_size_like(
-                input=enc_output,
-                shape=[-1, self.n_head, 0, self.d_key],
-                dtype=enc_output.dtype,
-                value=0),
-            "v": layers.fill_constant_batch_size_like(
-                input=enc_output,
-                shape=[-1, self.n_head, 0, self.d_value],
-                dtype=enc_output.dtype,
-                value=0),
-        } for i in range(self.n_layer)]
+        caches = self.decoder.prepare_incremental_cache(enc_output)
         enc_output = TransformerBeamSearchDecoder.tile_beam_merge_with_batch(
             enc_output, self.beam_size)
         trg_src_attn_bias = TransformerBeamSearchDecoder.tile_beam_merge_with_batch(
             trg_src_attn_bias, self.beam_size)
-        static_caches = self.decoder.decoder.prepare_static_cache(enc_output)
+        static_caches = self.decoder.prepare_static_cache(enc_output)
         rs, _ = self.beam_search_decoder(
             inits=caches,
             enc_output=enc_output,
@@ -491,12 +499,42 @@ class TestTransformerBeamSearchDecoder(ModuleApiTest):
     def make_inputs(self):
         inputs = [
             Input(
-                [None, self.inputs[0].shape[-1]],
+                [None, None, self.inputs[0].shape[-1]],
                 "float32",
-                name="init_hidden"), Input(
-                    [None, self.inputs[1].shape[-1]],
-                    "float32",
-                    name="init_cell")
+                name="enc_output"),
+            Input(
+                [None, self.inputs[1].shape[1], None, None],
+                "float32",
+                name="trg_src_attn_bias"),
+        ]
+        return inputs
+
+    def test_check_output(self):
+        self.check_output()
+
+
+class TestSequenceTagging(ModuleApiTest):
+    def setUp(self):
+        shape = (2, 4, 128)
+        self.inputs = [np.random.random(shape).astype("float32")]
+        self.outputs = None
+        self.attrs = {"input_size": 128, "hidden_size": 128}
+        self.param_states = {}
+
+    @staticmethod
+    def model_init(self, input_size, hidden_size):
+        self.module = SequenceTagging(input_size, hidden_size)
+
+    @staticmethod
+    def model_forward(self, inputs):
+        return self.gru(inputs)[0]
+
+    def make_inputs(self):
+        inputs = [
+            Input(
+                [None, None, self.inputs[-1].shape[-1]],
+                "float32",
+                name="input"),
         ]
         return inputs
 
