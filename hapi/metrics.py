@@ -54,7 +54,7 @@ class Metric(object):
                        |                      ||
                     {model}                   ||
                        |                      ||
-                 outputs labels               ||
+                outputs & labels              ||
                        |                      ||    tensor data
              {Metric.add_metric_op}           ||
                        |                      ||
