@@ -50,21 +50,21 @@ class Metric(object):
     Metric calculated as follows (operations in Model and Metric are
     indicated with curly brackets, while data nodes not):
 
-                 inputs & labels              ||
+                 inputs & labels              || ------------------
                        |                      ||
                     {model}                   ||
                        |                      ||
                  outputs labels               ||
-                       |                      ||
+                       |                      ||    tensor data
             {Metric.add_metric_op}            ||
                        |                      ||
                   metric states               ||
                        |                      ||
-                {fetch as numpy}              ||
+                {fetch as numpy}              || ------------------
                        |                      ||
-              metric states(numpy)            ||
+              metric states(numpy)            ||    numpy data
                        |                      ||
-                {Metric.update}               \/
+                {Metric.update}               \/ ------------------
 
     Examples:
         
