@@ -20,7 +20,6 @@ import pickle
 import numpy as np
 import six
 import warnings
-import tqdm
 
 from collections import Iterable
 from paddle import fluid
@@ -1257,11 +1256,6 @@ class Model(fluid.dygraph.Layer):
         assert train_data is not None, \
                 "train_data must be given!"
 
-        if fluid.in_dygraph_mode():
-            feed_list = None
-        else:
-            feed_list = [x.forward() for x in self._inputs + self._labels]
-
         if isinstance(train_data, Dataset):
             train_sampler = DistributedBatchSampler(
                 train_data,
@@ -1272,7 +1266,6 @@ class Model(fluid.dygraph.Layer):
                 train_data,
                 batch_sampler=train_sampler,
                 places=self._place,
-                feed_list=feed_list,
                 num_workers=num_workers,
                 return_list=True)
         else:
@@ -1285,7 +1278,6 @@ class Model(fluid.dygraph.Layer):
                 eval_data,
                 batch_sampler=eval_sampler,
                 places=self._place,
-                feed_list=feed_list,
                 num_workers=num_workers,
                 return_list=True)
         elif eval_data is not None:
@@ -1295,7 +1287,7 @@ class Model(fluid.dygraph.Layer):
 
         do_eval = eval_loader is not None
         self._test_dataloader = eval_loader
-        metrics_name = self._metrics_name()
+
         steps = self._len_data_loader(train_loader)
         cbks = config_callbacks(
             callbacks,
@@ -1311,26 +1303,19 @@ class Model(fluid.dygraph.Layer):
         cbks.on_begin('train')
         for epoch in range(epochs):
 
-            # FIXME: adapt to DataLoader
-            loader = train_loader
-            if not isinstance(train_loader, Iterable):
-                loader = train_loader()
-            logs = self._run_one_epoch(
-                loader, cbks, 'train', metrics_name, epoch=epoch)
+            cbks.on_epoch_begin(epoch)
+            logs = self._run_one_epoch(train_loader, cbks, 'train')
+            cbks.on_epoch_end(epoch, logs)
 
             if do_eval and epoch % eval_freq == 0:
-                # FIXME: adapt to DataLoader
-                loader = eval_loader
-                if not isinstance(eval_loader, Iterable):
-                    loader = eval_loader()
 
-                eval_steps = self._len_data_loader(loader)
+                eval_steps = self._len_data_loader(eval_loader)
                 cbks.on_begin('eval', {
                     'steps': eval_steps,
-                    'metrics_name': metrics_name
+                    'metrics_name': self._metrics_name()
                 })
 
-                logs = self._run_one_epoch(loader, cbks, 'eval', metrics_name)
+                logs = self._run_one_epoch(eval_loader, cbks, 'eval')
 
                 cbks.on_end('eval', logs)
 
@@ -1369,12 +1354,41 @@ class Model(fluid.dygraph.Layer):
         Returns:
             dict: Result of metric. The key is the names of Metric,
                 value is a scalar or numpy.array.
-        """
 
-        if fluid.in_dygraph_mode():
-            feed_list = None
-        else:
-            feed_list = [x.forward() for x in self._inputs + self._labels]
+        Examples:
+        .. code-block:: python
+
+            # declarative mode
+            import numpy as np
+            from hapi.metrics import Accuracy
+            from hapi.datasets import MNIST
+            from hapi.vision.transforms import Compose,Resize
+            from hapi.vision.models import LeNet
+            from hapi.model import Input, set_device
+
+
+            inputs = [Input([-1, 1, 28, 28], 'float32', name='image')]
+            labels = [Input([None, 1], 'int64', name='label')]
+
+            val_dataset = MNIST(mode='test')
+
+            model = LeNet()
+            model.prepare(metrics=Accuracy(), inputs=inputs, labels=labels)
+
+            result = model.evaluate(val_dataset, batch_size=64)
+            print(result)
+
+            # imperative mode
+            import paddle.fluid.dygraph as dg
+            place = set_device('cpu')
+            with dg.guard(place) as g:
+                model = LeNet()
+                model.prepare(metrics=Accuracy(), inputs=inputs, labels=labels)
+
+                result = model.evaluate(val_dataset, batch_size=64)
+                print(result)
+                
+        """
 
         if eval_data is not None and isinstance(eval_data, Dataset):
             eval_sampler = DistributedBatchSampler(
@@ -1383,14 +1397,12 @@ class Model(fluid.dygraph.Layer):
                 eval_data,
                 batch_sampler=eval_sampler,
                 places=self._place,
-                feed_list=feed_list,
                 num_workers=num_workers,
                 return_list=True)
         else:
             eval_loader = eval_data
 
         self._test_dataloader = eval_loader
-        metrics_name = self._metrics_name()
 
         cbks = config_callbacks(
             callbacks,
@@ -1399,16 +1411,13 @@ class Model(fluid.dygraph.Layer):
             verbose=verbose,
             metrics=self._metrics_name(), )
 
-        loader = eval_loader
-        if not isinstance(eval_loader, Iterable):
-            loader = eval_loader()
+        eval_steps = self._len_data_loader(eval_loader)
+        cbks.on_begin('eval', {
+            'steps': eval_steps,
+            'metrics_name': self._metrics_name()
+        })
 
-        eval_steps = self._len_data_loader(loader)
-        cbks.on_begin('eval',
-                      {'steps': eval_steps,
-                       'metrics_name': metrics_name})
-
-        logs = self._run_one_epoch(loader, cbks, 'eval', metrics_name)
+        logs = self._run_one_epoch(eval_loader, cbks, 'eval')
 
         cbks.on_end('eval', logs)
 
@@ -1424,7 +1433,8 @@ class Model(fluid.dygraph.Layer):
                 test_data,
                 batch_size=1,
                 num_workers=0,
-                stack_outputs=False):
+                stack_outputs=False,
+                callbacks=None):
         """
         Compute the output predictions on testing data.
 
@@ -1446,12 +1456,52 @@ class Model(fluid.dygraph.Layer):
                 it is recommended set as True if outputs contains no LoDTensor. Default: False.
         Returns:
             list: output of models.
-        """
 
-        if fluid.in_dygraph_mode():
-            feed_list = None
-        else:
-            feed_list = [x.forward() for x in self._inputs]
+        Examples:
+        .. code-block:: python
+
+            # declarative mode
+            import numpy as np
+            from hapi.metrics import Accuracy
+            from hapi.datasets import MNIST
+            from hapi.vision.transforms import Compose,Resize
+            from hapi.vision.models import LeNet
+            from hapi.model import Input, set_device
+
+            class MnistDataset(MNIST):
+                def __init__(self, mode, return_label=True):
+                    super(MnistDataset, self).__init__(mode=mode)
+                    self.return_label = return_label
+
+                def __getitem__(self, idx):
+                    img = np.reshape(self.images[idx], [1, 28, 28])
+                    if self.return_label:
+                        return img, np.array(self.labels[idx]).astype('int64')
+                    return img,
+
+                def __len__(self):
+                    return len(self.images)
+
+            inputs = [Input([-1, 1, 28, 28], 'float32', name='image')]
+
+            test_dataset = MnistDataset(mode='test', return_label=False)
+
+            model = LeNet()
+            model.prepare(inputs=inputs)
+
+            result = model.predict(test_dataset, batch_size=64)
+            print(result)
+
+            # imperative mode
+            import paddle.fluid.dygraph as dg
+            place = set_device('cpu')
+            with dg.guard(place) as g:
+                model = LeNet()
+                model.prepare(inputs=inputs)
+
+                result = model.predict(test_dataset, batch_size=64)
+                print(result)
+        """
 
         if test_data is not None and isinstance(test_data, Dataset):
             test_sampler = DistributedBatchSampler(
@@ -1460,7 +1510,6 @@ class Model(fluid.dygraph.Layer):
                 test_data,
                 batch_sampler=test_sampler,
                 places=self._place,
-                feed_list=feed_list,
                 num_workers=num_workers,
                 return_list=True)
         else:
@@ -1468,34 +1517,27 @@ class Model(fluid.dygraph.Layer):
 
         self._test_dataloader = test_loader
 
-        loader = test_loader
-        if not isinstance(test_loader, Iterable):
-            loader = test_loader()
+        cbks = config_callbacks(callbacks, model=self, verbose=1)
+
+        test_steps = self._len_data_loader(test_loader)
+        logs = {'steps': test_steps}
+
+        cbks.on_begin('test', logs)
 
         outputs = []
-        count = 0
-        for data in tqdm.tqdm(loader):
-            data = flatten(data)
-            out = to_list(self.test_batch(data[:len(self._inputs)]))
-            outputs.append(out)
-            count += out[0].shape[0]
 
-        if test_loader is not None and self._adapter._nranks > 1 \
-                    and isinstance(test_loader, DataLoader) \
-                    and count > len(test_loader.dataset):
-            size = outputs[-1][0].shape[0] - (count - len(test_loader.dataset))
-            outputs[-1] = [o[:size] for o in outputs[-1]]
-
-        # NOTE: for lod tensor output, we should not stack outputs
-        # for stacking may loss its detail info
+        logs, outputs = self._run_one_epoch(test_loader, cbks, 'test')
 
         outputs = list(zip(*outputs))
 
+        # NOTE: for lod tensor output, we should not stack outputs
+        # for stacking may loss its detail info
         if stack_outputs:
             outputs = [np.vstack(outs) for outs in outputs]
 
         self._test_dataloader = None
 
+        cbks.on_end('test', logs)
         return outputs
 
     def save_inference_model(self,
@@ -1542,22 +1584,8 @@ class Model(fluid.dygraph.Layer):
             params_filename=params_filename,
             program_only=model_only)
 
-    def _run_one_epoch(self,
-                       data_loader,
-                       callbacks,
-                       mode,
-                       metrics_name,
-                       epoch=None):
-        size = self._len_data_loader(data_loader)
-        logs = {
-            'steps': size,
-            'metrics_name': metrics_name,
-        }
-
-        if mode == 'train':
-            assert epoch is not None, 'when mode is train, epoch must be given'
-            callbacks.on_epoch_begin(epoch)
-
+    def _run_one_epoch(self, data_loader, callbacks, mode, logs={}):
+        outputs = []
         for step, data in enumerate(data_loader):
             # data might come from different types of data_loader and have
             # different format, as following:
@@ -1577,25 +1605,25 @@ class Model(fluid.dygraph.Layer):
                 0].shape) else data[0].shape[0]
 
             callbacks.on_batch_begin(mode, step, logs)
-            if mode == 'train':
-                outs = self.train_batch(data[:len(self._inputs)],
-                                        data[len(self._inputs):])
+
+            if mode != 'test':
+                outs = getattr(self, mode + '_batch')(data[:len(self._inputs)],
+                                                      data[len(self._inputs):])
+                # losses
+                loss = outs[0] if self._metrics else outs
+                metrics = [[l[0] for l in loss]]
+
+                # metrics
+                for metric in self._metrics:
+                    res = metric.accumulate()
+                    metrics.extend(to_list(res))
+
+                assert len(self._metrics_name()) == len(metrics)
+                for k, v in zip(self._metrics_name(), metrics):
+                    logs[k] = v
             else:
-                outs = self.eval_batch(data[:len(self._inputs)],
-                                       data[len(self._inputs):])
-
-            # losses
-            loss = outs[0] if self._metrics else outs
-            metrics = [[l[0] for l in loss]]
-
-            # metrics
-            for metric in self._metrics:
-                res = metric.accumulate()
-                metrics.extend(to_list(res))
-
-            assert len(metrics_name) == len(metrics)
-            for k, v in zip(metrics_name, metrics):
-                logs[k] = v
+                outs = getattr(self, mode + '_batch')(data)
+                outputs.append(outs)
 
             logs['step'] = step
             if mode == 'train' or self._adapter._merge_count.get(
@@ -1608,10 +1636,8 @@ class Model(fluid.dygraph.Layer):
             callbacks.on_batch_end(mode, step, logs)
         self._reset_metrics()
 
-        if mode == 'train':
-            assert epoch is not None, 'when mode is train, epoch must be given'
-            callbacks.on_epoch_end(epoch, logs)
-
+        if mode == 'test':
+            return logs, outputs
         return logs
 
     def _reset_metrics(self):

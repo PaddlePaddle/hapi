@@ -143,6 +143,17 @@ def vgg11(pretrained=False, batch_norm=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet. Default: False.
         batch_norm (bool): If True, returns a model with batch_norm layer. Default: False.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import vgg11
+
+            # build model
+            model = vgg11()
+
+            #build vgg11 model with batch_norm
+            model = vgg11(batch_norm=True)
     """
     model_name = 'vgg11'
     if batch_norm:
@@ -156,6 +167,17 @@ def vgg13(pretrained=False, batch_norm=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet. Default: False.
         batch_norm (bool): If True, returns a model with batch_norm layer. Default: False.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import vgg13
+
+            # build model
+            model = vgg13()
+
+            #build vgg13 model with batch_norm
+            model = vgg13(batch_norm=True)
     """
     model_name = 'vgg13'
     if batch_norm:
@@ -169,6 +191,17 @@ def vgg16(pretrained=False, batch_norm=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet. Default: False.
         batch_norm (bool): If True, returns a model with batch_norm layer. Default: False.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import vgg16
+
+            # build model
+            model = vgg16()
+
+            #build vgg16 model with batch_norm
+            model = vgg16(batch_norm=True)
     """
     model_name = 'vgg16'
     if batch_norm:
@@ -182,6 +215,17 @@ def vgg19(pretrained=False, batch_norm=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet. Default: False.
         batch_norm (bool): If True, returns a model with batch_norm layer. Default: False.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import vgg19
+
+            # build model
+            model = vgg19()
+
+            #build vgg19 model with batch_norm
+            model = vgg19(batch_norm=True)
     """
     model_name = 'vgg19'
     if batch_norm:

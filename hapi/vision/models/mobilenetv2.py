@@ -160,6 +160,13 @@ class MobileNetV2(Model):
                             will not be defined. Default: 1000.
         with_pool (bool): use pool before the last fc layer or not. Default: True.
         classifier_activation (str): activation for the last fc layer. Default: 'softmax'.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import MobileNetV2
+
+            model = MobileNetV2()
     """
 
     def __init__(self,
@@ -256,6 +263,20 @@ def mobilenet_v2(pretrained=False, scale=1.0, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet. Default: False.
         scale: (float): scale of channels in each layer. Default: 1.0.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.vision.models import mobilenet_v2
+
+            # build model
+            model = mobilenet_v2()
+
+            #build model and load imagenet pretrained weight
+            model = mobilenet_v2(pretrained=True)
+
+            #build mobilenet v2 with scale=0.5
+            model = mobilenet_v2(scale=0.5)
     """
     model = _mobilenet(
         'mobilenetv2_' + str(scale), pretrained, scale=scale, **kwargs)

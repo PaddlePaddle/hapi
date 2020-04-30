@@ -12,27 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# when test, you should add hapi root path to the PYTHONPATH,
-# export PYTHONPATH=PATH_TO_HAPI:$PYTHONPATH
 import unittest
 import time
 import random
+import tempfile
+import shutil
 
+from hapi.model import Input
+from hapi.vision.models import LeNet
 from hapi.callbacks import config_callbacks
 
 
 class TestCallbacks(unittest.TestCase):
-    def test_callback(self):
+    def setUp(self):
+        self.save_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.save_dir)
+
+    def run_callback(self):
         epochs = 2
         steps = 50
-        freq = 1
+        freq = 2
         eval_steps = 20
+
+        lenet = LeNet()
+        inputs = [Input([None, 1, 28, 28], 'float32', name='image')]
+        lenet.prepare(inputs=inputs)
+
         cbks = config_callbacks(
+            model=lenet,
             batch_size=128,
             epochs=epochs,
             steps=steps,
-            verbose=2,
-            metrics=['loss', 'acc'], )
+            log_freq=freq,
+            verbose=self.verbose,
+            metrics=['loss', 'acc'],
+            save_dir=self.save_dir)
         cbks.on_begin('train')
 
         logs = {'loss': 50.341673, 'acc': 0.00256}
@@ -48,13 +64,12 @@ class TestCallbacks(unittest.TestCase):
 
             eval_logs = {'eval_loss': 20.341673, 'eval_acc': 0.256}
             params = {
-                'eval_steps': eval_steps,
-                'eval_metrics': ['eval_loss', 'eval_acc'],
-                'log_freq': 10,
+                'steps': eval_steps,
+                'metrics_name': ['eval_loss', 'eval_acc'],
             }
             cbks.on_begin('eval', params)
             for step in range(eval_steps):
-                cbks.on_batch_begin('eval', step, logs)
+                cbks.on_batch_begin('eval', step, eval_logs)
                 eval_logs['eval_loss'] -= random.random() * 0.1
                 eval_logs['eval_acc'] += random.random() * 0.1
                 eval_logs['batch_size'] = 2
@@ -62,7 +77,29 @@ class TestCallbacks(unittest.TestCase):
                 cbks.on_batch_end('eval', step, eval_logs)
             cbks.on_end('eval', eval_logs)
 
+            test_logs = {}
+            params = {'steps': eval_steps}
+            cbks.on_begin('test', params)
+            for step in range(eval_steps):
+                cbks.on_batch_begin('test', step, test_logs)
+                test_logs['batch_size'] = 2
+                time.sleep(0.005)
+                cbks.on_batch_end('test', step, test_logs)
+            cbks.on_end('test', test_logs)
+
         cbks.on_end('train')
+
+    def test_callback_verbose_0(self):
+        self.verbose = 0
+        self.run_callback()
+
+    def test_callback_verbose_1(self):
+        self.verbose = 1
+        self.run_callback()
+
+    def test_callback_verbose_2(self):
+        self.verbose = 2
+        self.run_callback()
 
 
 if __name__ == '__main__':

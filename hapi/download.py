@@ -17,15 +17,39 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import sys
 import os.path as osp
 import shutil
 import requests
-import tqdm
 import hashlib
 import time
 from collections import OrderedDict
-
 from paddle.fluid.dygraph.parallel import ParallelEnv
+
+try:
+    from tqdm import tqdm
+except:
+
+    class tqdm(object):
+        def __init__(self, total=None):
+            self.total = total
+            self.n = 0
+
+        def update(self, n):
+            self.n += n
+            if self.total is None:
+                sys.stderr.write("\r{0:.1f} bytes".format(self.n))
+            else:
+                sys.stderr.write("\r{0:.1f}%".format(100 * self.n / float(
+                    self.total)))
+            sys.stderr.flush()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            sys.stderr.write('\n')
+
 
 import logging
 logger = logging.getLogger(__name__)
@@ -36,25 +60,43 @@ WEIGHTS_HOME = osp.expanduser("~/.cache/paddle/hapi/weights")
 
 DOWNLOAD_RETRY_LIMIT = 3
 
-nlp_models = OrderedDict(
-            (('RoBERTa-zh-base', 'https://bert-models.bj.bcebos.com/chinese_roberta_wwm_ext_L-12_H-768_A-12.tar.gz'),
-            ('RoBERTa-zh-large', 'https://bert-models.bj.bcebos.com/chinese_roberta_wwm_large_ext_L-24_H-1024_A-16.tar.gz'),
-            ('ERNIE-v2-en-base', 'https://ernie.bj.bcebos.com/ERNIE_Base_en_stable-2.0.0.tar.gz'),
-            ('ERNIE-v2-en-large', 'https://ernie.bj.bcebos.com/ERNIE_Large_en_stable-2.0.0.tar.gz'),
-            ('XLNet-cased-base', 'https://xlnet.bj.bcebos.com/xlnet_cased_L-12_H-768_A-12.tgz'),
-            ('XLNet-cased-large', 'https://xlnet.bj.bcebos.com/xlnet_cased_L-24_H-1024_A-16.tgz'),
-            ('ERNIE-v1-zh-base', 'https://baidu-nlp.bj.bcebos.com/ERNIE_stable-1.0.1.tar.gz'),
-            ('ERNIE-v1-zh-base-max-len-512', 'https://ernie.bj.bcebos.com/ERNIE_1.0_max-len-512.tar.gz'),
-            ('BERT-en-uncased-large-whole-word-masking', 'https://bert-models.bj.bcebos.com/wwm_uncased_L-24_H-1024_A-16.tar.gz'),
-            ('BERT-en-cased-large-whole-word-masking', 'https://bert-models.bj.bcebos.com/wwm_cased_L-24_H-1024_A-16.tar.gz'),
-            ('BERT-en-uncased-base', 'https://bert-models.bj.bcebos.com/uncased_L-12_H-768_A-12.tar.gz'),
-            ('BERT-en-uncased-large', 'https://bert-models.bj.bcebos.com/uncased_L-24_H-1024_A-16.tar.gz'),
-            ('BERT-en-cased-base', 'https://bert-models.bj.bcebos.com/cased_L-12_H-768_A-12.tar.gz'),
-            ('BERT-en-cased-large','https://bert-models.bj.bcebos.com/cased_L-24_H-1024_A-16.tar.gz'),
-            ('BERT-multilingual-uncased-base', 'https://bert-models.bj.bcebos.com/multilingual_L-12_H-768_A-12.tar.gz'),
-            ('BERT-multilingual-cased-base', 'https://bert-models.bj.bcebos.com/multi_cased_L-12_H-768_A-12.tar.gz'),
-            ('BERT-zh-base', 'https://bert-models.bj.bcebos.com/chinese_L-12_H-768_A-12.tar.gz'),)
-            )
+nlp_models = OrderedDict((
+    ('RoBERTa-zh-base',
+     'https://bert-models.bj.bcebos.com/chinese_roberta_wwm_ext_L-12_H-768_A-12.tar.gz'
+     ),
+    ('RoBERTa-zh-large',
+     'https://bert-models.bj.bcebos.com/chinese_roberta_wwm_large_ext_L-24_H-1024_A-16.tar.gz'
+     ),
+    ('ERNIE-v2-en-base',
+     'https://ernie.bj.bcebos.com/ERNIE_Base_en_stable-2.0.0.tar.gz'),
+    ('ERNIE-v2-en-large',
+     'https://ernie.bj.bcebos.com/ERNIE_Large_en_stable-2.0.0.tar.gz'),
+    ('XLNet-cased-base',
+     'https://xlnet.bj.bcebos.com/xlnet_cased_L-12_H-768_A-12.tgz'),
+    ('XLNet-cased-large',
+     'https://xlnet.bj.bcebos.com/xlnet_cased_L-24_H-1024_A-16.tgz'),
+    ('ERNIE-v1-zh-base',
+     'https://baidu-nlp.bj.bcebos.com/ERNIE_stable-1.0.1.tar.gz'),
+    ('ERNIE-v1-zh-base-max-len-512',
+     'https://ernie.bj.bcebos.com/ERNIE_1.0_max-len-512.tar.gz'),
+    ('BERT-en-uncased-large-whole-word-masking',
+     'https://bert-models.bj.bcebos.com/wwm_uncased_L-24_H-1024_A-16.tar.gz'),
+    ('BERT-en-cased-large-whole-word-masking',
+     'https://bert-models.bj.bcebos.com/wwm_cased_L-24_H-1024_A-16.tar.gz'),
+    ('BERT-en-uncased-base',
+     'https://bert-models.bj.bcebos.com/uncased_L-12_H-768_A-12.tar.gz'),
+    ('BERT-en-uncased-large',
+     'https://bert-models.bj.bcebos.com/uncased_L-24_H-1024_A-16.tar.gz'),
+    ('BERT-en-cased-base',
+     'https://bert-models.bj.bcebos.com/cased_L-12_H-768_A-12.tar.gz'),
+    ('BERT-en-cased-large',
+     'https://bert-models.bj.bcebos.com/cased_L-24_H-1024_A-16.tar.gz'),
+    ('BERT-multilingual-uncased-base',
+     'https://bert-models.bj.bcebos.com/multilingual_L-12_H-768_A-12.tar.gz'),
+    ('BERT-multilingual-cased-base',
+     'https://bert-models.bj.bcebos.com/multi_cased_L-12_H-768_A-12.tar.gz'),
+    ('BERT-zh-base',
+     'https://bert-models.bj.bcebos.com/chinese_L-12_H-768_A-12.tar.gz'), ))
 
 
 def is_url(path):
@@ -76,6 +118,15 @@ def get_weights_path_from_url(url, md5sum=None):
     
     Returns:
         str: a local path to save downloaded weights.
+
+    Examples:
+        .. code-block:: python
+
+            from hapi.download import get_weights_path_from_url
+
+            resnet18_pretrained_weight_url = 'https://paddle-hapi.bj.bcebos.com/models/resnet18.pdparams'
+            local_weight_path = get_weights_path_from_url(resnet18_pretrained_weight_url)
+
     """
     path = get_path_from_url(url, WEIGHTS_HOME, md5sum)
     return path
@@ -153,11 +204,10 @@ def _download(url, path, md5sum=None):
         total_size = req.headers.get('content-length')
         with open(tmp_fullname, 'wb') as f:
             if total_size:
-                for chunk in tqdm.tqdm(
-                        req.iter_content(chunk_size=1024),
-                        total=(int(total_size) + 1023) // 1024,
-                        unit='KB'):
-                    f.write(chunk)
+                with tqdm(total=(int(total_size) + 1023) // 1024) as pbar:
+                    for chunk in req.iter_content(chunk_size=1024):
+                        f.write(chunk)
+                        pbar.update(1)
             else:
                 for chunk in req.iter_content(chunk_size=1024):
                     if chunk:

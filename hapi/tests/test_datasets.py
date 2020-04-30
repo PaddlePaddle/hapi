@@ -20,11 +20,14 @@ import shutil
 import cv2
 
 from hapi.datasets import *
+from hapi.datasets.utils import _check_exists_and_download
+from hapi.vision.transforms import Compose
 
 
 class TestFolderDatasets(unittest.TestCase):
-    def makedata(self):
+    def setUp(self):
         self.data_dir = tempfile.mkdtemp()
+        self.empty_dir = tempfile.mkdtemp()
         for i in range(2):
             sub_dir = os.path.join(self.data_dir, 'class_' + str(i))
             if not os.path.exists(sub_dir):
@@ -34,8 +37,10 @@ class TestFolderDatasets(unittest.TestCase):
                     (32, 32, 3)) * 255).astype('uint8')
                 cv2.imwrite(os.path.join(sub_dir, str(j) + '.jpg'), fake_img)
 
+    def tearDown(self):
+        shutil.rmtree(self.data_dir)
+
     def test_dataset(self):
-        self.makedata()
         dataset_folder = DatasetFolder(self.data_dir)
 
         for _ in dataset_folder:
@@ -44,7 +49,30 @@ class TestFolderDatasets(unittest.TestCase):
         assert len(dataset_folder) == 4
         assert len(dataset_folder.classes) == 2
 
-        shutil.rmtree(self.data_dir)
+        transform = Compose([])
+        dataset_folder = DatasetFolder(self.data_dir, transform=transform)
+        for _ in dataset_folder:
+            pass
+
+    def test_folder(self):
+        loader = ImageFolder(self.data_dir)
+
+        for _ in loader:
+            pass
+
+        transform = Compose([])
+        loader = ImageFolder(self.data_dir, transform=transform)
+        for _ in loader:
+            pass
+
+    def test_errors(self):
+        with self.assertRaises(RuntimeError):
+            ImageFolder(self.empty_dir)
+        with self.assertRaises(RuntimeError):
+            DatasetFolder(self.empty_dir)
+
+        with self.assertRaises(ValueError):
+            _check_exists_and_download('temp_paddle', None, None, None, False)
 
 
 class TestMNISTTest(unittest.TestCase):

@@ -36,13 +36,13 @@ def setup_logger(output=None, name="hapi", log_level=logging.INFO):
     logger.propagate = False
     logger.setLevel(log_level)
 
+    format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     # stdout logging: only local rank==0
     local_rank = ParallelEnv().local_rank
-    if local_rank == 0:
+    if local_rank == 0 and len(logger.handlers) == 0:
         ch = logging.StreamHandler(stream=sys.stdout)
         ch.setLevel(log_level)
 
-        format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         ch.setFormatter(logging.Formatter(format_str))
         logger.addHandler(ch)
 
@@ -52,6 +52,7 @@ def setup_logger(output=None, name="hapi", log_level=logging.INFO):
             filename = output
         else:
             filename = os.path.join(output, "log.txt")
+
         if local_rank > 0:
             filename = filename + ".rank{}".format(local_rank)
 
