@@ -159,7 +159,7 @@ def main():
         labels,
         device=device)
 
-    cls_model.bert_layer.load("./bert_small", reset_optimizer=True)
+    cls_model.bert_layer.load("./bert_uncased_L-12_H-768_A-12/bert", reset_optimizer=True)
 
     # do train
     cls_model.fit(train_data=train_dataloader.dataloader,

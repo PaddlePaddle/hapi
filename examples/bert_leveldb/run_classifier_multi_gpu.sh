@@ -1,16 +1,14 @@
 #!/bin/bash
-BERT_BASE_PATH="./data/pretrained_models/uncased_L-12_H-768_A-12/"
-TASK_NAME='MNLI'
+BERT_BASE_PATH="./bert_uncased_L-12_H-768_A-12/"
 DATA_PATH="./data/glue_data/MNLI/"
 CKPT_PATH="./data/saved_model/mnli_models"
 
 # start fine-tuning
-python3.7 -m paddle.distributed.launch --started_port 8899 --selected_gpus=1,2,3 bert_classifier.py\
+python3.7 -m paddle.distributed.launch --started_port 8899 --selected_gpus=0,1,2,3 bert_classifier.py\
     --use_cuda true \
     --do_train true \
     --do_test true \
     --batch_size 64 \
-    --init_pretraining_params ${BERT_BASE_PATH}/dygraph_params/ \
     --data_dir ${DATA_PATH} \
     --vocab_path ${BERT_BASE_PATH}/vocab.txt \
     --checkpoints ${CKPT_PATH} \
