@@ -17,15 +17,39 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import sys
 import os.path as osp
 import shutil
 import requests
-import tqdm
 import hashlib
 import time
 from collections import OrderedDict
-
 from paddle.fluid.dygraph.parallel import ParallelEnv
+
+try:
+    from tqdm import tqdm
+except:
+
+    class tqdm(object):
+        def __init__(self, total=None):
+            self.total = total
+            self.n = 0
+
+        def update(self, n):
+            self.n += n
+            if self.total is None:
+                sys.stderr.write("\r{0:.1f} bytes".format(self.n))
+            else:
+                sys.stderr.write("\r{0:.1f}%".format(100 * self.n / float(
+                    self.total)))
+            sys.stderr.flush()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            sys.stderr.write('\n')
+
 
 import logging
 logger = logging.getLogger(__name__)
@@ -180,11 +204,10 @@ def _download(url, path, md5sum=None):
         total_size = req.headers.get('content-length')
         with open(tmp_fullname, 'wb') as f:
             if total_size:
-                for chunk in tqdm.tqdm(
-                        req.iter_content(chunk_size=1024),
-                        total=(int(total_size) + 1023) // 1024,
-                        unit='KB'):
-                    f.write(chunk)
+                with tqdm(total=(int(total_size) + 1023) // 1024) as pbar:
+                    for chunk in req.iter_content(chunk_size=1024):
+                        f.write(chunk)
+                        pbar.update(1)
             else:
                 for chunk in req.iter_content(chunk_size=1024):
                     if chunk:
