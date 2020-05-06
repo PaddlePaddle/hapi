@@ -26,14 +26,14 @@ import math
 import argparse
 import numpy as np
 
-from train import SeqTagging
-from utils.check import check_gpu, check_version
-from utils.configure import PDConfig
-from reader import LacDataset, LacDataLoader
-
 work_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(work_dir, "../"))
-from hapi.model import set_device, Input
+
+from hapi.text.sequence_tagging import SeqTagging
+from hapi.model import Input, set_device
+from hapi.text.sequence_tagging import LacDataset, LacDataLoader
+from hapi.text.sequence_tagging import check_gpu, check_version
+from hapi.text.sequence_tagging import PDConfig
 
 import paddle.fluid as fluid
 from paddle.fluid.layers.utils import flatten
