@@ -186,14 +186,12 @@ Overall Architecture of GRU-CRF-MODEL
 ├── data/                                   # 存放数据集的目录
 ├── conf/                                   # 词典及程序默认配置的目录
 ├── images/                               # 文档图片存放位置
-├── utils/                                   # 常用工具函数
 ├── train.py                               # 训练脚本
 ├── predict.py                           # 预测脚本
 ├── eval.py                               # 词法分析评估的脚本
 ├── downloads.py                      # 用于下载数据和模型的脚本
 ├── downloads.sh                      # 用于下载数据和模型的脚本
-├── sequence_tagging.yaml             # 模型训练、预测、评估相关配置参数
-└──reader.py                           # 文件读取相关函数
+└── sequence_tagging.yaml             # 模型训练、预测、评估相关配置参数
 ```
 
 
