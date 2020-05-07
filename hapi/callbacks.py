@@ -311,7 +311,8 @@ class ProgBarLogger(Callback):
 
     def on_eval_end(self, logs=None):
         logs = logs or {}
-        if self._is_print() and (self.steps is not None):
+
+        if self._is_print() and (self.eval_steps is not None):
             self._updates(logs, 'eval')
             print('Eval samples: %d' % (self.evaled_samples))
 
