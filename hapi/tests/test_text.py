@@ -25,7 +25,6 @@ from paddle.fluid.dygraph import Embedding, Linear, Layer
 from paddle.fluid.layers import BeamSearchDecoder
 import hapi.text as text
 from hapi.model import Model, Input, set_device
-# from hapi.text.text import BasicLSTMCell, BasicGRUCell, RNN, DynamicDecode, MultiHeadAttention, TransformerEncoder, TransformerCell
 from hapi.text.text import *
 
 
@@ -515,15 +514,142 @@ class TestTransformerBeamSearchDecoder(ModuleApiTest):
 
 class TestSequenceTagging(ModuleApiTest):
     def setUp(self):
-        shape = (2, 4, 128)
-        self.inputs = [np.random.random(shape).astype("float32")]
+        self.inputs = [
+            np.random.randint(0, 100, (2, 8)).astype("int64"),
+            np.random.randint(1, 8, (2)).astype("int64"),
+            np.random.randint(0, 5, (2, 8)).astype("int64")
+        ]
         self.outputs = None
-        self.attrs = {"input_size": 128, "hidden_size": 128}
+        self.attrs = {"vocab_size": 100, "num_labels": 5}
         self.param_states = {}
 
     @staticmethod
-    def model_init(self, input_size, hidden_size):
-        self.module = SequenceTagging(input_size, hidden_size)
+    def model_init(self,
+                   vocab_size,
+                   num_labels,
+                   word_emb_dim=128,
+                   grnn_hidden_dim=128,
+                   emb_learning_rate=0.1,
+                   crf_learning_rate=0.1,
+                   bigru_num=2,
+                   init_bound=0.1):
+        self.tagger = SequenceTagging(vocab_size, num_labels, word_emb_dim,
+                                      grnn_hidden_dim, emb_learning_rate,
+                                      crf_learning_rate, bigru_num, init_bound)
+
+    @staticmethod
+    def model_forward(self, word, lengths, target=None):
+        return self.tagger(word, lengths, target)
+
+    def make_inputs(self):
+        inputs = [
+            Input(
+                [None, None], "int64", name="word"),
+            Input(
+                [None], "int64", name="lengths"),
+            Input(
+                [None, None], "int64", name="target"),
+        ]
+        return inputs
+
+    def test_check_output(self):
+        self.check_output()
+
+
+class TestSequenceTaggingInfer(TestSequenceTagging):
+    def setUp(self):
+        super(TestSequenceTaggingInfer, self).setUp()
+        self.inputs = self.inputs[:2]  # remove target
+
+    def make_inputs(self):
+        inputs = super(TestSequenceTaggingInfer,
+                       self).make_inputs()[:2]  # remove target
+        return inputs
+
+
+class TestLSTM(ModuleApiTest):
+    def setUp(self):
+        shape = (2, 4, 16)
+        self.inputs = [np.random.random(shape).astype("float32")]
+        self.outputs = None
+        self.attrs = {"input_size": 16, "hidden_size": 16, "num_layers": 2}
+        self.param_states = {}
+
+    @staticmethod
+    def model_init(self, input_size, hidden_size, num_layers):
+        self.lstm = LSTM(input_size, hidden_size, num_layers=num_layers)
+
+    @staticmethod
+    def model_forward(self, inputs):
+        return self.lstm(inputs)[0]
+
+    def make_inputs(self):
+        inputs = [
+            Input(
+                [None, None, self.inputs[-1].shape[-1]],
+                "float32",
+                name="input"),
+        ]
+        return inputs
+
+    def test_check_output(self):
+        self.check_output()
+
+
+class TestBiLSTM(ModuleApiTest):
+    def setUp(self):
+        shape = (2, 4, 16)
+        self.inputs = [np.random.random(shape).astype("float32")]
+        self.outputs = None
+        self.attrs = {"input_size": 16, "hidden_size": 16, "num_layers": 2}
+        self.param_states = {}
+
+    @staticmethod
+    def model_init(self,
+                   input_size,
+                   hidden_size,
+                   num_layers,
+                   merge_mode="concat",
+                   merge_each_layer=False):
+        self.bilstm = BidirectionalLSTM(
+            input_size,
+            hidden_size,
+            num_layers=num_layers,
+            merge_mode=merge_mode,
+            merge_each_layer=merge_each_layer)
+
+    @staticmethod
+    def model_forward(self, inputs):
+        return self.bilstm(inputs)[0]
+
+    def make_inputs(self):
+        inputs = [
+            Input(
+                [None, None, self.inputs[-1].shape[-1]],
+                "float32",
+                name="input"),
+        ]
+        return inputs
+
+    def test_check_output_merge0(self):
+        self.check_output()
+
+    def test_check_output_merge1(self):
+        self.attrs["merge_each_layer"] = True
+        self.check_output()
+
+
+class TestGRU(ModuleApiTest):
+    def setUp(self):
+        shape = (2, 4, 64)
+        self.inputs = [np.random.random(shape).astype("float32")]
+        self.outputs = None
+        self.attrs = {"input_size": 64, "hidden_size": 128, "num_layers": 2}
+        self.param_states = {}
+
+    @staticmethod
+    def model_init(self, input_size, hidden_size, num_layers):
+        self.gru = GRU(input_size, hidden_size, num_layers=num_layers)
 
     @staticmethod
     def model_forward(self, inputs):
@@ -539,6 +665,49 @@ class TestSequenceTagging(ModuleApiTest):
         return inputs
 
     def test_check_output(self):
+        self.check_output()
+
+
+class TestBiGRU(ModuleApiTest):
+    def setUp(self):
+        shape = (2, 4, 64)
+        self.inputs = [np.random.random(shape).astype("float32")]
+        self.outputs = None
+        self.attrs = {"input_size": 64, "hidden_size": 128, "num_layers": 2}
+        self.param_states = {}
+
+    @staticmethod
+    def model_init(self,
+                   input_size,
+                   hidden_size,
+                   num_layers,
+                   merge_mode="concat",
+                   merge_each_layer=False):
+        self.bigru = BidirectionalGRU(
+            input_size,
+            hidden_size,
+            num_layers=num_layers,
+            merge_mode=merge_mode,
+            merge_each_layer=merge_each_layer)
+
+    @staticmethod
+    def model_forward(self, inputs):
+        return self.bigru(inputs)[0]
+
+    def make_inputs(self):
+        inputs = [
+            Input(
+                [None, None, self.inputs[-1].shape[-1]],
+                "float32",
+                name="input"),
+        ]
+        return inputs
+
+    def test_check_output_merge0(self):
+        self.check_output()
+
+    def test_check_output_merge1(self):
+        self.attrs["merge_each_layer"] = True
         self.check_output()
 
 
