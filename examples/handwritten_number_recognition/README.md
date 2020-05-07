@@ -47,7 +47,7 @@ python mnist.py --resume mnist_checkpoint/final.pdparams --eval-only
 ```
 切换动态图模式评估：
 ```
-python mnist.py --resume mnist_checkpoint/final.pdparams --eval-only
+python mnist.py --resume mnist_checkpoint/final.pdparams --eval-only --dynamic
 ```
 多卡评估
 ```
