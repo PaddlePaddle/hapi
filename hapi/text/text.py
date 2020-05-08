@@ -1898,14 +1898,16 @@ class SequenceTagging(fluid.dygraph.Layer):
             crf_decode = self.crf_decoding(input=emission, length=lengths)
             return crf_decode, lengths
 
+
 class Conv1dPoolLayer(Layer):
     """
-        This interface is used to construct a callable object of the ``Conv1DPoolLayer`` class.The ``Conv1DPoolLayer`` is composed of a ``Conv2D``  and a ``Pool2D``  .
-        For more details, refer to code examples.The ``Conv1DPoolLayer`` layer calculates the output based on the input, filter and strides, paddings, dilations, 
-        groups,global_pooling, pool_type,ceil_mode,exclusive parameters.Input and Output are in NCH format, where N is batch size, C is the number of the feature map, 
-        H is the height of the feature map.The data type of Input data and Output data is 'float32' or 'float64'.
+    This interface is used to construct a callable object of the ``Conv1DPoolLayer`` class.
+    The ``Conv1DPoolLayer`` class does a ``Conv1D``  and a ``Pool1D`` .For more details, 
+    refer to code examples.The ``Conv1DPoolLayer`` layer calculates the output based on the 
+    input, filter and strides, paddings, dilations, groups,global_pooling, pool_type,ceil_mode,
+    exclusive parameters.
 
-    Args:
+    Parameters:
         input(Variable):3-D Tensor, shape is [N, C, H], data type can be float32 or float64
         num_channels(int): The number of channels in the input data.
         num_filters(int): The number of filters. It is the same as the output channels.
@@ -1915,147 +1917,174 @@ class Conv1dPoolLayer(Layer):
         pool_stride (int): The stride size of the pool layer in Conv1DPoolLayer. Default: 1
         conv_padding (int): The padding size of the conv Layer in Conv1DPoolLayer. Default: 0
         pool_padding (int): The padding of pool layer in Conv1DPoolLayer. Default: 0
-        pool_type (str): Pooling type can be `max` for max-pooling or `avg` for average-pooling. Default: math:`max`
-        global_pooling (bool): Whether to use the global pooling. If global_pooling = true, pool_size and pool_padding while be ignored. Default: False
+        pool_type (str): Pooling type can be `max` for max-pooling or `avg` for average-pooling. 
+                Default: math:`max`
+        global_pooling (bool): Whether to use the global pooling. If global_pooling = true, 
+                pool_size and pool_padding while be ignored. Default: False
         dilation (int): The dilation size of the conv Layer. Default: 1.
-        groups (int): The groups number of the conv Layer. According to grouped convolution in Alex Krizhevsky's Deep CNN paper: when group=2,
-                the first half of the filters is only connected to the first half of the input channels, while the second half of the filters is only 
-                connected to the second half of the input channels. Default: 1.
-        param_attr (ParamAttr|None): The parameter attribute for learnable parameters/weights of conv layer. If it is set to None or one attribute of 
-                ParamAttr, conv2d will create ParamAttr as param_attr. If the Initializer of the param_attr is not set, the parameter is initialized 
-                with :`Normal(0.0, std)`,and the :`std` is :`(\\frac{2.0 }{filter\_elem\_num})^{0.5}`.Default: None.
-        bias_attr (ParamAttr|bool|None): The parameter attribute for the bias of conv.If it is set to False, no bias will be added to the output units.
-                If it is set to None or one attribute of ParamAttr, conv2d will create ParamAttr as bias_attr. If the Initializer of the bias_attr is not 
-                set, the bias is initialized zero. Default: None.
-        name(str, optional): The default value is None. Normally there is no need for user to set this property. Default: None
-        act (str): Activation type for conv layer, if it is set to None, activation is not appended. Default: None.
-        use_cudnn (bool): Use cudnn kernel or not, it is valid only when the cudnn library is installed. Default: False
-        ceil_mode (bool, optional): Whether to use the ceil function to calculate output height and width.
-                False is the default. If it is set to False, the floor function will be used. Default: False.
-        exclusive (bool, optional): Whether to exclude padding points in average pooling mode. Default: True.
-
-    Return:
-            3-D Tensor, the result of input after conv and pool, with the same data type as :`input`
-
-    Return Type:
-            Variable
+        groups (int): The groups number of the conv Layer. According to grouped convolution in 
+                Alex Krizhevsky's Deep CNN paper: when group=2, the first half of the filters is 
+                only connected to the first half of the input channels, while the second half 
+                of the filters is only connected to the second half of the input channels. 
+                Default: 1.
+        param_attr (ParamAttr|None): The parameter attribute for learnable parameters/weights 
+                of conv layer. If it is set to None or one attribute of ParamAttr, conv2d will 
+                create ParamAttr as param_attr. If the Initializer of the param_attr 
+                is not set, the parameter is initialized with :`Normal(0.0, std)`,and 
+                the :`std` is :`(\\frac{2.0 }{filter\_elem\_num})^{0.5}`.Default: None.
+        bias_attr (ParamAttr|bool|None): The parameter attribute for the bias of conv.If it 
+                is set to False, no bias will be added to the output units.If it is set to 
+                None or one attribute of ParamAttr, conv2d will create ParamAttr as bias_attr. 
+                If the Initializer of the bias_attr is not set, the bias is initialized zero. 
+                Default: None.
+        act (str): Activation type for conv layer, if it is set to None, activation is not appended. 
+                Default: None.
+        use_cudnn (bool): Use cudnn kernel or not, it is valid only when the cudnn library 
+                is installed. Default: False
+        ceil_mode (bool, optional): Whether to use the ceil function to calculate output 
+                height and width.False is the default. If it is set to False, the floor function 
+                will be used. Default: False.
+        exclusive (bool, optional): Whether to exclude padding points in average pooling mode. 
+                Default: True.
 
     Example:
-    ```python
-        import paddle.fluid as fluid
-        from hapi.text import Conv1dPoolLayer
 
-        test=np.random.uniform(-1,1,[2,3,4]).astype('float32')
-        with fluid.dygraph.guard():
-            paddle_input=to_variable(test)
-            print(paddle_input.shape)
-            cov2d=Conv1dPoolLayer(3,4,2,2)
-            paddle_out=cov2d(paddle_input)
-            print(paddle_out.shape)#[2,4,2]
+        .. code-block:: python
 
-    ```
+           import paddle.fluid as fluid
+           from paddle.incubate.hapi.text import Conv1dPoolLayer
+
+           test=np.random.uniform(-1,1,[2,3,4]).astype('float32')
+           with fluid.dygraph.guard():
+               paddle_input=to_variable(test)
+               cov2d=Conv1dPoolLayer(3,4,2,2)
+               paddle_out=cov2d(paddle_input)
+               print(paddle_out.shape)#[2,4,2]
+
     """
-    def __init__(self,
-                 num_channels,
-                 num_filters,
-                 filter_size,
-                 pool_size,
-                 conv_stride=1,
-                 pool_stride=1,
-                 conv_padding=0,
-                 pool_padding=0,
-                 pool_type='max',
-                 global_pooling=False,
-                 dilation=1,
-                 groups=None,
-                 param_attr=None,
-                 bias_attr=None,
-                 act=None,
-                 use_cudnn=False,
-                 ceil_mode=False,
-                 exclusive=True,
-                 ):
+
+    def __init__(
+            self,
+            num_channels,
+            num_filters,
+            filter_size,
+            pool_size,
+            conv_stride=1,
+            pool_stride=1,
+            conv_padding=0,
+            pool_padding=0,
+            pool_type='max',
+            global_pooling=False,
+            dilation=1,
+            groups=None,
+            param_attr=None,
+            bias_attr=None,
+            act=None,
+            use_cudnn=False,
+            ceil_mode=False,
+            exclusive=True, ):
         super(Conv1dPoolLayer, self).__init__()
-        self._conv2d = Conv2D(num_channels=num_channels,
-                              num_filters=num_filters,
-                              filter_size=[filter_size,1],
-                              stride=[conv_stride,1],
-                              padding=[conv_padding,0],
-                              dilation=[dilation,1],
-                              groups=groups,
-                              param_attr=param_attr,
-                              bias_attr=bias_attr,
-                              use_cudnn=use_cudnn,
-                              act=act)
-        self._pool2d = Pool2D(pool_size=[pool_size,1],
-                              pool_type=pool_type,
-                              pool_stride=[pool_stride,1],
-                              pool_padding=[pool_padding,0],
-                              global_pooling=global_pooling,
-                              use_cudnn=use_cudnn,
-                              ceil_mode=ceil_mode,
-                              exclusive=exclusive
-                              )
+        self._conv2d = Conv2D(
+            num_channels=num_channels,
+            num_filters=num_filters,
+            filter_size=[filter_size, 1],
+            stride=[conv_stride, 1],
+            padding=[conv_padding, 0],
+            dilation=[dilation, 1],
+            groups=groups,
+            param_attr=param_attr,
+            bias_attr=bias_attr,
+            use_cudnn=use_cudnn,
+            act=act)
+        self._pool2d = Pool2D(
+            pool_size=[pool_size, 1],
+            pool_type=pool_type,
+            pool_stride=[pool_stride, 1],
+            pool_padding=[pool_padding, 0],
+            global_pooling=global_pooling,
+            use_cudnn=use_cudnn,
+            ceil_mode=ceil_mode,
+            exclusive=exclusive)
+
     def forward(self, inputs):
-        x = fluid.layers.unsqueeze(inputs,axes=[-1])
+        """
+        Performs :Code:`Conv1dPoolLayer.forward` receives input data. After a conv and a pool,
+                the result will be output.
+
+        Parameters:
+            inputs(Variable): Inputs are 3-D Tensor, shape is [N, C, H] , where N is batch size, 
+                C is the number of the feature map, H is the height of the feature map.The data 
+                type of Input data is 'float32' or 'float64'.
+        
+        Returns:
+            3-D Tensor, with the same data type as :`input`
+        """
+        x = fluid.layers.unsqueeze(inputs, axes=[-1])
         x = self._conv2d(x)
         x = self._pool2d(x)
         x = fluid.layers.squeeze(x, axes=[-1])
         return x
 
 
-
-
 class CNNEncoder(Layer):
     """
-        This interface is used to construct a callable object of the ``CNNEncoder`` class.The ``CNNEncoder`` is composed of a ``Embedding``  and a ``Conv1dPoolLayer``  .
-        For more details, refer to code examples. The ``CNNEncoder`` layer calculates the output based on the input, dict_size and emb_dim, filter_size, num_filters, 
-        use_cuda, is_sparse, param_attr parameters. The type of Input data is a 3-D Tensor .The data type of Input data is 'float32'. Output data are in NCH 
-        format, where N is batch size, C is the number of the feature map, H is the height of the feature map. The data type of Output data is 'float32' or 'float64'.
+    This interface is used to construct a callable object of the ``CNNEncoder`` class.The ``CNNEncoder`` 
+    is composed of ``Conv1dPoolLayer`` .``CNNEncoder`` can define every Conv1dPoolLayer with different 
+    or same parameters. The ``Conv1dPoolLayer`` in ``CNNEncoder`` is parallel.The result of every 
+    ``Conv1dPoolLayer`` will concat as the final output.For more details, refer to code examples. 
+    The ``CNNEncoder`` layer calculates the output based on the input, dict_size and emb_dim, 
+    filter_size, num_filters, use_cuda, is_sparse, param_attr parameters. 
 
-    Args:
-    num_channels(int|list|tuple): The number of channels in the input data.If num_channels is a list or tuple, the length of num_channels must equal layer_num.If num_channels
-            is a int, all conv1dpoollayer's num_channels are the value of num_channels. 
-    num_filters(int|list|tuple): The number of filters. It is the same as the output channels. If num_filters is a list or tuple, the length of num_filters must equal layer_num.If num_filters
-            is a int, all conv1dpoollayer's num_filters are the value of num_filters. 
-    filter_size(int|list|tuple): The filter size of Conv1DPoolLayer in CNNEncoder. If filter_size is a list or tuple, the length of filter_size must equal layer_num.If filter_size
-            is a int, all conv1dpoollayer's filter_size are the value of filter_size. 
-    pool_size(int|list|tuple): The pooling size of Conv1DPoolLayer in CNNEncoder.If pool_size is a list or tuple, the length of pool_size must equal layer_num.If pool_size
-            is a int, all conv1dpoollayer's pool_size are the value of pool_size. 
-    layer_num(int): The number of conv1dpoolLayer used in CNNEncoder.
-    conv_stride(int|list|tuple): The stride size of the conv Layer in Conv1DPoolLayer. If conv_stride is a list or tuple, the length of conv_stride must equal layer_num.If conv_stride
-            is a int, all conv1dpoollayer's conv_stride are the value of conv_stride.  Default: 1
-    pool_stride(int|list|tuple): The stride size of the pool layer in Conv1DPoolLayer. If pool_stride is a list or tuple, the length of pool_stride must equal layer_num.If pool_stride
-            is a int, all conv1dpoollayer's pool_stride are the value of pool_stride. Default: 1
-    conv_padding(int|list|tuple): The padding size of the conv Layer in Conv1DPoolLayer.If conv_padding is a list or tuple, the length of conv_padding must equal layer_num.If conv_padding
-            is a int, all conv1dpoollayer's conv_padding are the value of conv_padding.  Default: 0
-    pool_padding(int|list|tuple): The padding of pool layer in Conv1DPoolLayer. If pool_padding is a list or tuple, the length of pool_padding must equal layer_num.If pool_padding
-            is a int, all conv1dpoollayer's pool_padding are the value of pool_padding. Default: 0
-    use_cudnn (bool): Use cudnn kernel or not, it is valid only when the cudnn library is installed. Default: False
-    act (str|list|tuple): Activation type for `Conv1dPoollayer` layer, if it is set to None, activation is not appended. Default: None.
-
-    Return:
-            3-D Tensor, the result of input after  embedding and conv1dPoollayer
-
-    Return Type:
-            Variable
+    Parameters:
+        num_channels(int|list|tuple): The number of channels in the input data.If num_channels is 
+                a list or tuple, the length of num_channels must equal layer_num.If num_channels 
+                is a int, all conv1dpoollayer's num_channels are the value of num_channels. 
+        num_filters(int|list|tuple): The number of filters. It is the same as the output channels. 
+                If num_filters is a list or tuple, the length of num_filters must equal layer_num.
+                If num_filters is a int, all conv1dpoollayer's num_filters are the value of num_filters. 
+        filter_size(int|list|tuple): The filter size of Conv1DPoolLayer in CNNEncoder. If filter_size 
+                is a list or tuple, the length of filter_size must equal layer_num.If filter_size is a 
+                int, all conv1dpoollayer's filter_size are the value of filter_size. 
+        pool_size(int|list|tuple): The pooling size of Conv1DPoolLayer in CNNEncoder.If pool_size is 
+                a list or tuple, the length of pool_size must equal layer_num.If pool_size is a int, 
+                all conv1dpoollayer's pool_size are the value of pool_size. 
+        layer_num(int): The number of conv1dpoolLayer used in CNNEncoder.
+        conv_stride(int|list|tuple): The stride size of the conv Layer in Conv1DPoolLayer. If 
+                conv_stride is a list or tuple, the length of conv_stride must equal layer_num.
+                If conv_stride is a int, all conv1dpoollayer's conv_stride are the value of 
+                conv_stride. Default: 1
+        pool_stride(int|list|tuple): The stride size of the pool layer in Conv1DPoolLayer. If 
+                pool_stride is a list or tuple, the length of pool_stride must equal layer_num.
+                If pool_stride is a int, all conv1dpoollayer's pool_stride are the value of 
+                pool_stride. Default: 1
+        conv_padding(int|list|tuple): The padding size of the conv Layer in Conv1DPoolLayer.
+                If conv_padding is a list or tuple, the length of conv_padding must equal layer_num.
+                If conv_padding is a int, all conv1dpoollayer's conv_padding are the value of 
+                conv_padding. Default: 0
+        pool_padding(int|list|tuple): The padding of pool layer in Conv1DPoolLayer. If pool_padding is 
+                a list or tuple, the length of pool_padding must equal layer_num.If pool_padding is a 
+                int, all conv1dpoollayer's pool_padding are the value of pool_padding. Default: 0
+        use_cudnn (bool): Use cudnn kernel or not, it is valid only when the cudnn library is installed. 
+                Default: False
+        act (str|list|tuple): Activation type for `Conv1dPoollayer` layer, if it is set to None, 
+                activation is not appended. Default: None.
     
     Example:
-    ```python
-        import paddle.fluid as fluid
-        from hapi.text import CNNEncoder
 
-        test=np.random.uniform(1,5,[2,3,4]).astype('float32')
-        with fluid.dygraph.guard():
-            paddle_input=to_variable(test)
-            #print(paddle_input.shape)
-            cov2d=CNNEncoder(3,4,2,2,3)
-            paddle_out=cov2d(paddle_input)
-            print(paddle_out)#[2,12,2]
+        .. code-block:: python
 
-    ```
+           import paddle.fluid as fluid
+           from paddle.incubate.hapi.text import Conv1dPoolLayer
+
+           test=np.random.uniform(-1,1,[2,3,4]).astype('float32')
+           with fluid.dygraph.guard():
+               paddle_input=to_variable(test)
+               cov2d=CNNEncoder(3,4,2,2,3)
+               paddle_out=cov2d(paddle_input)
+               print(paddle_out)#[2,12,2]
 
     """
+
     def __init__(self,
                  num_channels,
                  num_filters,
@@ -2067,33 +2096,55 @@ class CNNEncoder(Layer):
                  conv_padding=0,
                  pool_padding=0,
                  use_cudnn=False,
-                 act=None
-                 ):
+                 act=None):
         super(CNNEncoder, self).__init__()
-        self.num_channels=num_channels
-        self.num_filters=num_filters
-        self.filter_size=filter_size
-        self.pool_size=pool_size
-        self.layer_num=layer_num
-        self.conv_stride=conv_stride
-        self.pool_stride=pool_stride
-        self.conv_padding=conv_padding
-        self.pool_padding=pool_padding
-        self.use_cudnn=use_cudnn
-        self.act=act
-        self.conv_layer = fluid.dygraph.LayerList([Conv1dPoolLayer(num_channels=self.num_channels if isinstance(self.num_channels,int) else self.num_channels[i],
-            num_filters=self.num_filters if isinstance(self.num_channels,int) else self.num_filters [i],
-            filter_size=self.filter_size if isinstance(self.filter_size,int) else self.filter_size[i],
-            pool_size=self.pool_size if isinstance(self.pool_size,int) else self.pool_size[i],
-            conv_stride=self.conv_stride if isinstance(self.conv_stride,int) else self.conv_stride[i],
-            pool_stride=self.pool_stride if isinstance(self.pool_stride,int) else self.pool_stride[i],
-            conv_padding= self.conv_padding if isinstance(self.conv_padding,int) else self.conv_padding[i],
-            pool_padding=self.pool_padding if isinstance(self.pool_padding,int) else self.pool_padding[i],
-            act=self.act[i] if isinstance(self.act,(list,tuple)) else self.act,
-            use_cudnn=self.use_cudnn
-        ) for i in range(layer_num)])
+        self.num_channels = num_channels
+        self.num_filters = num_filters
+        self.filter_size = filter_size
+        self.pool_size = pool_size
+        self.layer_num = layer_num
+        self.conv_stride = conv_stride
+        self.pool_stride = pool_stride
+        self.conv_padding = conv_padding
+        self.pool_padding = pool_padding
+        self.use_cudnn = use_cudnn
+        self.act = act
+        self.conv_layer = fluid.dygraph.LayerList([
+            Conv1dPoolLayer(
+                num_channels=self.num_channels if
+                isinstance(self.num_channels, int) else self.num_channels[i],
+                num_filters=self.num_filters
+                if isinstance(self.num_channels, int) else self.num_filters[i],
+                filter_size=self.filter_size
+                if isinstance(self.filter_size, int) else self.filter_size[i],
+                pool_size=self.pool_size
+                if isinstance(self.pool_size, int) else self.pool_size[i],
+                conv_stride=self.conv_stride
+                if isinstance(self.conv_stride, int) else self.conv_stride[i],
+                pool_stride=self.pool_stride
+                if isinstance(self.pool_stride, int) else self.pool_stride[i],
+                conv_padding=self.conv_padding if
+                isinstance(self.conv_padding, int) else self.conv_padding[i],
+                pool_padding=self.pool_padding if
+                isinstance(self.pool_padding, int) else self.pool_padding[i],
+                act=self.act[i]
+                if isinstance(self.act, (list, tuple)) else self.act,
+                use_cudnn=self.use_cudnn) for i in range(layer_num)
+        ])
 
     def forward(self, input):
-        res=[Conv1dPoolLayer(input) for Conv1dPoolLayer in self.conv_layer]
-        out=fluid.layers.concat(input=res,axis=1)
+        """
+        Performs :Code:`CNNEncoder.forward` receives input data.The result of every ``Conv1dPoolLayer`` 
+            will store in a list. Then, the results will be concated as the final output.  
+
+        Parameters:
+            inputs(Variable): Inputs are 3-D Tensor, shape is [N, C, H] , where N is batch size, 
+                C is the number of the feature map, H is the height of the feature map.The data 
+                type of Input data is 'float32' or 'float64'.
+        
+        Returns:
+            3-D Tensor, with the same data type as :`input`
+        """
+        res = [Conv1dPoolLayer(input) for Conv1dPoolLayer in self.conv_layer]
+        out = fluid.layers.concat(input=res, axis=1)
         return out
