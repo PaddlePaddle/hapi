@@ -2010,31 +2010,29 @@ class CNNEncoder(Layer):
     """
         This interface is used to construct a callable object of the ``CNNEncoder`` class.The ``CNNEncoder`` is composed of a ``Embedding``  and a ``Conv1dPoolLayer``  .
         For more details, refer to code examples. The ``CNNEncoder`` layer calculates the output based on the input, dict_size and emb_dim, filter_size, num_filters, 
-        use_cuda, is_sparse, param_attr parameters. The type of Input data is a Tensor or a lod-tensor .The data type of Input data is 'int64'. Output data are in NCH 
+        use_cuda, is_sparse, param_attr parameters. The type of Input data is a 3-D Tensor .The data type of Input data is 'float32'. Output data are in NCH 
         format, where N is batch size, C is the number of the feature map, H is the height of the feature map. The data type of Output data is 'float32' or 'float64'.
 
     Args:
-    dict_size(int): the size of the dictionary of embeddings
-    emb_szie(int): the size of each embedding vector respectively.
-    num_channels(int): The number of channels in the input data.Default:1
-    num_filters(int): The number of filters. It is the same as the output channels.
-    filter_size(int): The filter size of Conv1DPoolLayer in CNNEncoder.
-    pool_size(int): The pooling size of Conv1DPoolLayer in CNNEncoder.
+    num_channels(int|list|tuple): The number of channels in the input data.If num_channels is a list or tuple, the length of num_channels must equal layer_num.If num_channels
+            is a int, all conv1dpoollayer's num_channels are the value of num_channels. 
+    num_filters(int|list|tuple): The number of filters. It is the same as the output channels. If num_filters is a list or tuple, the length of num_filters must equal layer_num.If num_filters
+            is a int, all conv1dpoollayer's num_filters are the value of num_filters. 
+    filter_size(int|list|tuple): The filter size of Conv1DPoolLayer in CNNEncoder. If filter_size is a list or tuple, the length of filter_size must equal layer_num.If filter_size
+            is a int, all conv1dpoollayer's filter_size are the value of filter_size. 
+    pool_size(int|list|tuple): The pooling size of Conv1DPoolLayer in CNNEncoder.If pool_size is a list or tuple, the length of pool_size must equal layer_num.If pool_size
+            is a int, all conv1dpoollayer's pool_size are the value of pool_size. 
+    layer_num(int): The number of conv1dpoolLayer used in CNNEncoder.
+    conv_stride(int|list|tuple): The stride size of the conv Layer in Conv1DPoolLayer. If conv_stride is a list or tuple, the length of conv_stride must equal layer_num.If conv_stride
+            is a int, all conv1dpoollayer's conv_stride are the value of conv_stride.  Default: 1
+    pool_stride(int|list|tuple): The stride size of the pool layer in Conv1DPoolLayer. If pool_stride is a list or tuple, the length of pool_stride must equal layer_num.If pool_stride
+            is a int, all conv1dpoollayer's pool_stride are the value of pool_stride. Default: 1
+    conv_padding(int|list|tuple): The padding size of the conv Layer in Conv1DPoolLayer.If conv_padding is a list or tuple, the length of conv_padding must equal layer_num.If conv_padding
+            is a int, all conv1dpoollayer's conv_padding are the value of conv_padding.  Default: 0
+    pool_padding(int|list|tuple): The padding of pool layer in Conv1DPoolLayer. If pool_padding is a list or tuple, the length of pool_padding must equal layer_num.If pool_padding
+            is a int, all conv1dpoollayer's pool_padding are the value of pool_padding. Default: 0
     use_cudnn (bool): Use cudnn kernel or not, it is valid only when the cudnn library is installed. Default: False
-    is_sparse(bool): The flag indicating whether to use sparse update. This parameter only affects the performance of the backwards gradient update. It is recommended 
-            to set True because sparse update is faster. But some optimizer does not support sparse update,such as :ref:`api_fluid_optimizer_AdadeltaOptimizer` , 
-            :ref:`api_fluid_optimizer_AdamaxOptimizer` , :ref:`api_fluid_optimizer_DecayedAdagradOptimizer` , :ref:`api_fluid_optimizer_FtrlOptimizer` ,
-            :ref:`api_fluid_optimizer_LambOptimizer` and :ref:`api_fluid_optimizer_LarsMomentumOptimizer` .
-            In these case, is_sparse must be False. Default: True.  
-    param_attr(ParamAttr): To specify the weight parameter property. Default: None, which means the default weight parameter property is used. See usage for details in 
-            :ref:`api_fluid_ParamAttr` . In addition,user-defined or pre-trained word vectors can be loaded with the :attr:`param_attr` parameter. The local word vector 
-            needs to be transformed into numpy format, and the shape of local word vector should be consistent with :attr:`size` . 
-            Then :ref:`api_fluid_initializer_NumpyArrayInitializer` is used to load custom or pre-trained word vectors. Default: None. 
-    padding_idx(int|long|None): padding_idx needs to be in the interval [-vocab_size, vocab_size). 
-            If :math:`padding\_idx < 0`, the :math:`padding\_idx` will automatically be converted to :math:`vocab\_size + padding\_idx` . It will output all-zero padding 
-            data whenever lookup encounters :math:`padding\_idx` in id. And the padding data will not be updated while training. If set None, it makes no effect to 
-            output. Default: None. 
-    act (str): Activation type for `Conv1dPoollayer` layer, if it is set to None, activation is not appended. Default: None.
+    act (str|list|tuple): Activation type for `Conv1dPoollayer` layer, if it is set to None, activation is not appended. Default: None.
 
     Return:
             3-D Tensor, the result of input after  embedding and conv1dPoollayer
@@ -2047,53 +2045,55 @@ class CNNEncoder(Layer):
         import paddle.fluid as fluid
         from hapi.text import CNNEncoder
 
-        test=np.random.uniform(1,5,[2,3,4]).astype('int64')
+        test=np.random.uniform(1,5,[2,3,4]).astype('float32')
         with fluid.dygraph.guard():
             paddle_input=to_variable(test)
-            print(paddle_input.shape)
-            cov2d=CNNEncoder(128,4,3,4,2,2)
+            #print(paddle_input.shape)
+            cov2d=CNNEncoder(3,4,2,2,3)
             paddle_out=cov2d(paddle_input)
-            print(paddle_out.shape)#[8,4,2]
+            print(paddle_out)#[2,12,2]
 
     ```
 
     """
     def __init__(self,
-                 dict_size,
-                 emb_size,
                  num_channels,
                  num_filters,
                  filter_size,
                  pool_size,
-                 use_cuda=False,
-                 is_sparse=True,
-                 param_attr=None,
-                 padding_idx=None,
+                 layer_num,
+                 conv_stride=1,
+                 pool_stride=1,
+                 conv_padding=0,
+                 pool_padding=0,
+                 use_cudnn=False,
                  act=None
                  ):
         super(CNNEncoder, self).__init__()
-        self.dict_size = dict_size
-        self.emb_size = emb_size
-        self.filter_size = filter_size
-        self.num_filters = num_filters
-        self.pool_size = pool_size
-        self.channels = num_channels
-        self._emb_layer = Embedding(size=[self.dict_size, self.emb_size],
-                                   is_sparse=is_sparse,
-                                   padding_idx=padding_idx,
-                                   param_attr=param_attr)
-        self._cnn_layer = Conv1dPoolLayer(
-            self.channels,
-            self.num_filters,
-            self.filter_size,
-            self.pool_size,
-            use_cudnn=use_cuda,
-            act=act
-        )
+        self.num_channels=num_channels
+        self.num_filters=num_filters
+        self.filter_size=filter_size
+        self.pool_size=pool_size
+        self.layer_num=layer_num
+        self.conv_stride=conv_stride
+        self.pool_stride=pool_stride
+        self.conv_padding=conv_padding
+        self.pool_padding=pool_padding
+        self.use_cudnn=use_cudnn
+        self.act=act
+        self.conv_layer = fluid.dygraph.LayerList([Conv1dPoolLayer(num_channels=self.num_channels if isinstance(self.num_channels,int) else self.num_channels[i],
+            num_filters=self.num_filters if isinstance(self.num_channels,int) else self.num_filters [i],
+            filter_size=self.filter_size if isinstance(self.filter_size,int) else self.filter_size[i],
+            pool_size=self.pool_size if isinstance(self.pool_size,int) else self.pool_size[i],
+            conv_stride=self.conv_stride if isinstance(self.conv_stride,int) else self.conv_stride[i],
+            pool_stride=self.pool_stride if isinstance(self.pool_stride,int) else self.pool_stride[i],
+            conv_padding= self.conv_padding if isinstance(self.conv_padding,int) else self.conv_padding[i],
+            pool_padding=self.pool_padding if isinstance(self.pool_padding,int) else self.pool_padding[i],
+            act=self.act[i] if isinstance(self.act,(list,tuple)) else self.act,
+            use_cudnn=self.use_cudnn
+        ) for i in range(layer_num)])
 
     def forward(self, input):
-        emb = self._emb_layer(input)
-        emb_reshape = fluid.layers.reshape(
-            emb, shape=[-1, self.channels, self.emb_size])
-        emb_out=self._cnn_layer(emb_reshape)
-        return emb_out
+        res=[Conv1dPoolLayer(input) for Conv1dPoolLayer in self.conv_layer]
+        out=fluid.layers.concat(input=res,axis=1)
+        return out
