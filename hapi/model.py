@@ -1622,7 +1622,7 @@ class Model(fluid.dygraph.Layer):
                 for k, v in zip(self._metrics_name(), metrics):
                     logs[k] = v
             else:
-                outs = getattr(self, mode + '_batch')(data)
+                outs = getattr(self, mode + '_batch')(data[:len(self._inputs)])
                 outputs.append(outs)
 
             logs['step'] = step
