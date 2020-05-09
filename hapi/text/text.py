@@ -45,17 +45,40 @@ from paddle.fluid.dygraph import Layer
 from paddle.fluid.layers import BeamSearchDecoder
 
 __all__ = [
-    'RNNCell', 'BasicLSTMCell', 'BasicGRUCell', 'RNN', 'DynamicDecode',
-    'BeamSearchDecoder', 'MultiHeadAttention', 'FFN',
-    'TransformerEncoderLayer', 'TransformerEncoder', 'TransformerDecoderLayer',
-    'TransformerDecoder', 'TransformerCell', 'TransformerBeamSearchDecoder',
-    'LinearChainCRF', 'CRFDecoding', 'SequenceTagging', 'GRUEncoder',
-    'StackedLSTMCell', 'LSTM', 'BidirectionalLSTM', 'StackedGRUCell', 'GRU',
-    'BidirectionalGRU'
+    'RNNCell',
+    'BasicLSTMCell',
+    'BasicGRUCell',
+    'RNN',
+    'StackedLSTMCell',
+    'LSTM',
+    'BidirectionalLSTM',
+    'StackedGRUCell',
+    'GRU',
+    'BidirectionalGRU',
+    'DynamicDecode',
+    'BeamSearchDecoder',
+    'MultiHeadAttention',
+    'FFN',
+    'TransformerEncoderLayer',
+    'TransformerEncoder',
+    'TransformerDecoderLayer',
+    'TransformerDecoder',
+    'TransformerCell',
+    'TransformerBeamSearchDecoder',
+    'LinearChainCRF',
+    'CRFDecoding',
+    'SequenceTagging',
+    'GRUEncoder',
 ]
 
 
 class RNNCell(Layer):
+    """
+    RNNCell is the base class for abstraction representing the calculations
+    mapping the input and state to the output and new state. It is suitable to
+    and mostly used in RNN.
+    """
+
     def get_initial_states(self,
                            batch_ref,
                            shape=None,
@@ -70,16 +93,18 @@ class RNNCell(Layer):
             batch_ref: A (possibly nested structure of) tensor variable[s].
                 The first dimension of the tensor will be used as batch size to
                 initialize states.
-            shape: A (possiblely nested structure of) shape[s], where a shape is
+            shape: A (possibly nested structure of) shape[s], where a shape is
                 represented as a list/tuple of integer). -1(for batch size) will
                 beautomatically inserted if shape is not started with it. If None,
                 property `state_shape` will be used. The default value is None.
-            dtype: A (possiblely nested structure of) data type[s]. The structure
+            dtype: A (possibly nested structure of) data type[s]. The structure
                 must be same as that of `shape`, except when all tensors' in states
                 has the same data type, a single data type can be used. If None and
                 property `cell.state_shape` is not available, float32 will be used
                 as the data type. The default value is None.
             init_value: A float value used to initialize states.
+            batch_dim_idx: An integer indicating which dimension of the tensor in
+                inputs represents batch size.  The default value is 0.
 
         Returns:
             Variable: tensor variable[s] packed in the same structure provided \
@@ -170,46 +195,61 @@ class RNNCell(Layer):
 
 class BasicLSTMCell(RNNCell):
     """
-    ****
-    BasicLSTMUnit class, Using basic operator to build LSTM
-    The algorithm can be described as the code below.
-        .. math::
-           i_t &= \sigma(W_{ix}x_{t} + W_{ih}h_{t-1} + b_i)
-           f_t &= \sigma(W_{fx}x_{t} + W_{fh}h_{t-1} + b_f + forget_bias )
-           o_t &= \sigma(W_{ox}x_{t} + W_{oh}h_{t-1} + b_o)
-           \\tilde{c_t} &= tanh(W_{cx}x_t + W_{ch}h_{t-1} + b_c)
-           c_t &= f_t \odot c_{t-1} + i_t \odot \\tilde{c_t}
-           h_t &= o_t \odot tanh(c_t)
-        - $W$ terms denote weight matrices (e.g. $W_{ix}$ is the matrix
-          of weights from the input gate to the input)
-        - The b terms denote bias vectors ($bx_i$ and $bh_i$ are the input gate bias vector).
-        - sigmoid is the logistic sigmoid function.
-        - $i, f, o$ and $c$ are the input gate, forget gate, output gate,
-          and cell activation vectors, respectively, all of which have the same size as
-          the cell output activation vector $h$.
-        - The :math:`\odot` is the element-wise product of the vectors.
-        - :math:`tanh` is the activation functions.
-        - :math:`\\tilde{c_t}` is also called candidate hidden state,
-          which is computed based on the current input and the previous hidden state.
-    Args:
-        name_scope(string) : The name scope used to identify parameter and bias name
-        hidden_size (integer): The hidden size used in the Unit.
-        param_attr(ParamAttr|None): The parameter attribute for the learnable
-            weight matrix. Note:
-            If it is set to None or one attribute of ParamAttr, lstm_unit will
-            create ParamAttr as param_attr. If the Initializer of the param_attr
-            is not set, the parameter is initialized with Xavier. Default: None.
-        bias_attr (ParamAttr|None): The parameter attribute for the bias
-            of LSTM unit.
-            If it is set to None or one attribute of ParamAttr, lstm_unit will
-            create ParamAttr as bias_attr. If the Initializer of the bias_attr
-            is not set, the bias is initialized as zero. Default: None.
-        gate_activation (function|None): The activation function for gates (actGate).
-                                  Default: 'fluid.layers.sigmoid'
-        activation (function|None): The activation function for cells (actNode).
-                             Default: 'fluid.layers.tanh'
-        forget_bias(float|1.0): forget bias used when computing forget gate
-        dtype(string): data type used in this unit
+    Long-Short Term Memory(LSTM) RNN cell.
+
+    The formula used is as follows:
+
+    .. math::
+
+        i_{t} & = act_g(W_{x_{i}}x_{t} + W_{h_{i}}h_{t-1} + b_{i})
+
+        f_{t} & = act_g(W_{x_{f}}x_{t} + W_{h_{f}}h_{t-1} + b_{f} + forget\\_bias)
+
+        c_{t} & = f_{t}c_{t-1} + i_{t} act_c (W_{x_{c}}x_{t} + W_{h_{c}}h_{t-1} + b_{c})
+
+        o_{t} & = act_g(W_{x_{o}}x_{t} + W_{h_{o}}h_{t-1} + b_{o})
+
+        h_{t} & = o_{t} act_c (c_{t})
+
+    Please refer to `An Empirical Exploration of Recurrent Network Architectures
+    <http://proceedings.mlr.press/v37/jozefowicz15.pdf>`_
+    for more details.
+
+    Parameters:
+        input_size (int): The input size in the LSTM cell.
+        hidden_size (int): The hidden size in the LSTM cell.
+        param_attr(ParamAttr, optional): The parameter attribute for the learnable
+            weight matrix. Default: None.
+        bias_attr (ParamAttr, optional): The parameter attribute for the bias
+            of LSTM. Default: None.
+        gate_activation (function, optional): The activation function for gates
+            of LSTM, that is :math:`act_g` in the formula. Default: None,
+            representing for `fluid.layers.sigmoid`.
+        activation (function, optional): The non-gate activation function of
+            LSTM, that is :math:`act_c` in the formula. Default: None,
+            representing for 'fluid.layers.tanh'.
+        forget_bias(float, optional): forget bias used when computing forget gate.
+            Default 1.0
+        dtype(string, optional): The data type used in this cell. Default float32.
+        forget_gate_weights (dict, optional): A dict includes `w`, `h` and `b`
+            as keys, and the corresponding values should be instances of Parameter
+            which represent :math:`W_{x_{f}}, W_{h_{f}}, b_{f}` and have shape
+            [input_size, hidden_size], [hidden_size, hidden_size], [hidden_size]
+            separately. It is used for reusing and sharing weights when provided,
+            otherwise create these parameters. Note that parameters from input
+            gate, forget gate and cell would be concatenated in implementation.
+        input_gate_weights (dict, optional): A dict includes `w`, `h` and `b` as keys,
+            and the corresponding values should be instances of Parameter which
+            represent :math:`W_{x_{i}}, W_{h_{i}}, b_{i}` separately. It has the
+            same usage as :attr:`forget_gate_weights`.
+        output_gate_weights (dict, optional): A dict includes `w`, `h` and `b` as keys,
+            and the corresponding values should be instances of Parameter which
+            represent :math:`W_{x_{o}}, W_{h_{o}}, b_{o}` separately. It has the
+            same usage as :attr:`forget_gate_weights`.
+        cell_weights (dict, optional): A dict includes `w`, `h` and `b` as keys,
+            and the corresponding values should be instances of Parameter which
+            represent :math:`W_{x_{c}}, W_{h_{c}}, b_{c}` separately. It has the
+            same usage as :attr:`forget_gate_weights`.
     """
 
     def __init__(self,
@@ -480,41 +520,63 @@ class BasicLSTMCell(RNNCell):
 
     @property
     def state_shape(self):
+        """
+        The `state_shape` of BasicLSTMCell is a list with two shapes: `[[hidden_size], [hidden_size]]`
+        (-1 for batch size would be automatically inserted into shape). These two
+        shapes correspond to :math:`h_{t-1}` and :math:`c_{t-1}` separately.
+        """
         return [[self._hidden_size], [self._hidden_size]]
 
 
 class BasicGRUCell(RNNCell):
     """
-    ****
-    BasicGRUUnit class, using basic operators to build GRU
-    The algorithm can be described as the equations below.
+    Gated Recurrent Unit (GRU) RNN cell.
 
-        .. math::
-            u_t & = actGate(W_ux xu_{t} + W_uh h_{t-1} + b_u)
+    The formula for GRU used is as follows:
 
-            r_t & = actGate(W_rx xr_{t} + W_rh h_{t-1} + b_r)
+    .. math::
 
-            m_t & = actNode(W_cx xm_t + W_ch dot(r_t, h_{t-1}) + b_m)
+        u_t & = act_g(W_{ux}x_{t} + W_{uh}h_{t-1} + b_u)
 
-            h_t & = dot(u_t, h_{t-1}) + dot((1-u_t), m_t)
+        r_t & = act_g(W_{rx}x_{t} + W_{rh}h_{t-1} + b_r)
 
-    Args:
-        hidden_size (integer): The hidden size used in the Unit.
-        param_attr(ParamAttr|None): The parameter attribute for the learnable
-            weight matrix. Note:
-            If it is set to None or one attribute of ParamAttr, gru_unit will
-            create ParamAttr as param_attr. If the Initializer of the param_attr
-            is not set, the parameter is initialized with Xavier. Default: None.
-        bias_attr (ParamAttr|None): The parameter attribute for the bias
-            of GRU unit.
-            If it is set to None or one attribute of ParamAttr, gru_unit will 
-            create ParamAttr as bias_attr. If the Initializer of the bias_attr
-            is not set, the bias is initialized zero. Default: None.
-        gate_activation (function|None): The activation function for gates (actGate).
-                                  Default: 'fluid.layers.sigmoid'
-        activation (function|None): The activation function for cell (actNode).
-                             Default: 'fluid.layers.tanh'
-        dtype(string): data type used in this unit
+        \\tilde{h_t} & = act_c(W_{cx}x_{t} + W_{ch}(r_t \odot h_{t-1}) + b_c)
+
+        h_t & = u_t \odot h_{t-1} + (1-u_t) \odot \\tilde{h_t}
+
+    Please refer to `An Empirical Exploration of Recurrent Network Architectures
+    <http://proceedings.mlr.press/v37/jozefowicz15.pdf>`_
+    for more details.
+
+    Parameters:
+        input_size (int): The input size for the first GRU cell.
+        hidden_size (int): The hidden size for every GRU cell.
+        param_attr(ParamAttr, optional): The parameter attribute for the learnable
+            weight matrix. Default: None.
+        bias_attr (ParamAttr, optional): The parameter attribute for the bias
+            of LSTM. Default: None.
+        gate_activation (function, optional): The activation function for gates
+            of GRU, that is :math:`act_g` in the formula. Default: None,
+            representing for `fluid.layers.sigmoid`.
+        activation (function, optional): The non-gate activation function of
+            GRU, that is :math:`act_c` in the formula. Default: None,
+            representing for 'fluid.layers.tanh'.
+        dtype(string, optional): The data type used in this cell. Default float32.
+        update_gate_weights (dict, optional): A dict includes `w`, `h` and `b`
+            as keys, and the corresponding values should be instances of Parameter
+            which represent :math:`W_{ux}, W_{uh}, b_{u}` and have shape
+            [input_size, hidden_size], [hidden_size, hidden_size], [hidden_size]
+            separately. It is used for reusing and sharing weights when provided,
+            otherwise create these parameters. Note that parameters from update
+            gate and reset gate would be concatenated in implementation.
+        reset_gate_weights (dict, optional): A dict includes `w`, `h` and `b` as keys,
+            and the corresponding values should be instances of Parameter which
+            represent :math:`W_{rx}, W_{rh}, b_{r}` separately. It has the
+            same usage as :attr:`update_gate_weights`.
+        cell_weights (dict, optional): A dict includes `w`, `h` and `b` as keys,
+            and the corresponding values should be instances of Parameter which
+            represent :math:`W_{cx}, W_{ch}, b_{c}`` separately. It has the
+            same usage as :attr:`update_gate_weights`.
     """
 
     def __init__(self,
@@ -678,7 +740,7 @@ class BasicGRUCell(RNNCell):
 
             if "b" in reset_gate_weights and reset_gate_weights[
                     "b"] is not None:
-                self.rg_b = reused_params["b"]
+                self.rg_b = reset_gate_weights["b"]
             else:
                 if gate_bias_attr is not None and gate_bias_attr.name is not None:
                     tmp_param_attr = copy.deepcopy(gate_bias_attr)
@@ -771,10 +833,44 @@ class BasicGRUCell(RNNCell):
 
     @property
     def state_shape(self):
+        """
+        The `state_shape` of BasicGRUCell is a shape `[hidden_size]` (-1 for batch
+        size would be automatically inserted into shape). The shape corresponds
+        to :math:`h_{t-1}`.
+        """
         return [self._hidden_size]
 
 
-class RNN(fluid.dygraph.Layer):
+class RNN(Layer):
+    """
+    RNN creates a recurrent neural network specified by RNNCell `cell`, which
+    performs :code:`cell.forward()` repeatedly until reaches to the maximum
+    length of `inputs`.
+
+    Parameters:
+        cell(RNNCell): An instance of `RNNCell`.
+        is_reverse (bool, optional): Indicate whether to calculate in the reverse
+            order of input sequences. Default: `False`.
+        time_major (bool, optional): Indicate the data layout of Tensor included
+            in `input` and `output` tensors. If `False`, the data layout would
+            be batch major with shape `[batch_size, sequence_length, ...]`.  If
+            `True`, the data layout would be time major with shape
+            `[sequence_length, batch_size, ...]`. Default: `False`.
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import StackedLSTMCell, RNN
+
+            inputs = paddle.rand((2, 4, 32))
+            cell = StackedLSTMCell(input_size=32, hidden_size=64)
+            rnn = RNN(cell=cell, inputs=inputs)
+            outputs, _ = rnn(inputs)  # [2, 4, 64]
+    """
+
     def __init__(self, cell, is_reverse=False, time_major=False):
         super(RNN, self).__init__()
         self.cell = cell
@@ -790,6 +886,38 @@ class RNN(fluid.dygraph.Layer):
                 initial_states=None,
                 sequence_length=None,
                 **kwargs):
+        """
+        Performs :code:`cell.forward()` repeatedly until reaches to the maximum
+        length of `inputs`.
+
+        Parameters:
+            inputs (Variable): A (possibly nested structure of) tensor variable[s]. 
+                The shape of tensor should be `[batch_size, sequence_length, ...]`
+                for `time_major == False` or `[sequence_length, batch_size, ...]`
+                for `time_major == True`. It represents the inputs to be unrolled
+                in RNN.
+            initial_states (Variable, optional): A (possibly nested structure of)
+                tensor variable[s], representing the initial state for RNN. 
+                If not provided, `cell.get_initial_states` would be used to produce
+                the initial state. Default None.
+            sequence_length (Variable, optional): A tensor with shape `[batch_size]`.
+                It stores real length of each instance, thus enables users to extract
+                the last valid state when past a batch element's sequence length for
+                correctness. If not provided, the paddings would be treated same as
+                non-padding inputs. Default None.
+            **kwargs: Additional keyword arguments. Arguments passed to `cell.forward`. 
+
+        Returns:
+            tuple: A tuple( :code:`(final_outputs, final_states)` ) including the final \
+                outputs and states, both are Tensor or nested structure of Tensor. \
+                `final_outputs` has the same structure and data types as \
+                the returned `outputs` of :code:`cell.forward` , and each Tenser in `final_outputs` \
+                stacks all time steps' counterpart in `outputs` thus has shape `[batch_size, sequence_length, ...]` \
+                for `time_major == False` or `[sequence_length, batch_size, ...]` for `time_major == True`. \
+                `final_states` is the counterpart at last time step of initial states, \
+                thus has the same structure with it and has tensors with same shapes \
+                and data types.
+        """
         if fluid.in_dygraph_mode():
 
             class ArrayWrapper(object):
@@ -878,7 +1006,1188 @@ class RNN(fluid.dygraph.Layer):
         return final_outputs, final_states
 
 
+class StackedRNNCell(RNNCell):
+    """
+    Wrapper allowing a stack of RNN cells to behave as a single cell. It is used
+    to implement stacked RNNs.
+
+    Parameters:
+        cells (list|tuple): List of RNN cell instances.
+
+    Examples:
+
+        .. code-block:: python
+
+            from paddle.incubate.hapi.text import BasicLSTMCell, StackedRNNCell
+
+            cells = [BasicLSTMCell(32, 32), BasicLSTMCell(32, 32)]
+            stack_rnn = StackedRNNCell(cells)
+    """
+
+    def __init__(self, cells):
+        self.cells = []
+        for i, cell in enumerate(cells):
+            self.cells.append(self.add_sublayer("cell_%d" % i, cell))
+
+    def forward(self, inputs, states, **kwargs):
+        """
+        Performs :code:`cell.forward` for all including cells sequentially.
+        Each cell's `inputs` is the `outputs` of the previous cell. And each
+        cell's `states` is the corresponding one in `states`.
+
+        Parameters:
+            inputs (Variable): The inputs for the first cell. Mostly it is a
+                float32 or float64 tensor with shape `[batch_size, input_size]`.
+            states (list): A list containing states for all cells orderly.
+            **kwargs: Additional keyword arguments, which passed to `cell.forward`
+                for all including cells.
+
+        Returns:
+            tuple: A tuple( :code:`(outputs, new_states)` ). `outputs` is the \
+                `outputs` of the last cell. `new_states` is a list composed \
+                of all cells' `new_states`, and its structure and data type is \
+                same as that of `states` argument.
+        """
+        new_states = []
+        for cell, state in zip(self.cells, states):
+            outputs, new_state = cell(inputs, state, **kwargs)
+            inputs = outputs
+            new_states.append(new_state)
+        return outputs, new_states
+
+    @staticmethod
+    def stack_param_attr(param_attr, n):
+        """
+        If `param_attr` is a list or tuple, convert every element in it to a
+        ParamAttr instance. Otherwise, repeat `param_attr` `n` times to
+        construct a list, and rename every one by appending a increasing index
+        suffix to avoid having same names when `param_attr` contains a name.
+
+        Parameters:
+            param_attr (list|tuple|ParamAttr): A list, tuple or something can be
+                converted to a ParamAttr instance by `ParamAttr._to_attr`.
+            n (int): The times to repeat to construct a list when `param_attr`
+                is not a list or tuple.
+
+        Returns:
+            list: A list composed of each including cell's `param_attr`.
+        """
+        if isinstance(param_attr, (list, tuple)):
+            assert len(param_attr) == n, (
+                "length of param_attr should be %d when it is a list/tuple" %
+                n)
+            param_attrs = [
+                fluid.ParamAttr._to_attr(attr) for attr in param_attr
+            ]
+        else:
+            param_attrs = []
+            attr = fluid.ParamAttr._to_attr(param_attr)
+            for i in range(n):
+                attr_i = copy.deepcopy(attr)
+                if attr.name:
+                    attr_i.name = attr_i.name + "_" + str(i)
+                param_attrs.append(attr_i)
+        return param_attrs
+
+    @property
+    def state_shape(self):
+        """
+        The `state_shape` of StackedRNNCell is a list composed of each including
+        cell's `state_shape`.
+
+        Returns:
+            list: A list composed of each including cell's `state_shape`.
+        """
+        return [cell.state_shape for cell in self.cells]
+
+
+class StackedLSTMCell(RNNCell):
+    """
+    Wrapper allowing a stack of LSTM cells to behave as a single cell. It is used
+    to implement stacked LSTM.
+
+    The formula for LSTM used here is as follows:
+
+    .. math::
+
+        i_{t} & = act_g(W_{x_{i}}x_{t} + W_{h_{i}}h_{t-1} + b_{i})
+
+        f_{t} & = act_g(W_{x_{f}}x_{t} + W_{h_{f}}h_{t-1} + b_{f} + forget\\_bias)
+
+        c_{t} & = f_{t}c_{t-1} + i_{t} act_c (W_{x_{c}}x_{t} + W_{h_{c}}h_{t-1} + b_{c})
+
+        o_{t} & = act_g(W_{x_{o}}x_{t} + W_{h_{o}}h_{t-1} + b_{o})
+
+        h_{t} & = o_{t} act_c (c_{t})
+
+
+    Parameters:
+        input_size (int): The input size for the first LSTM cell.
+        hidden_size (int): The hidden size for every LSTM cell.
+        gate_activation (function, optional): The activation function for gates
+            of LSTM, that is :math:`act_g` in the formula. Default: None,
+            representing for `fluid.layers.sigmoid`.
+        activation (function, optional): The non-gate activation function of
+            LSTM, that is :math:`act_c` in the formula. Default: None,
+            representing for 'fluid.layers.tanh'.
+        forget_bias (float, optional): forget bias used when computing forget
+            gate. It also can accept a boolean value `True`, which would set
+            :math:`forget\\_bias` as 0 but initialize :math:`b_{f}` as 1 and
+            :math:`b_{i}, b_{f}, b_{c}, b_{0}` as 0. This is recommended in
+            http://www.jmlr.org/proceedings/papers/v37/jozefowicz15.pdf .
+            Default 1.0.
+        num_layers(int, optional): The number of LSTM to be stacked. Default 1.
+        dropout(float|list|tuple, optional): The dropout probability after each
+            LSTM. It also can be a list or tuple, including dropout probabilities
+            for the corresponding LSTM. Default 0.0
+        param_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(param_attr, num_layers)`.
+            Default None.
+        bias_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(bias_attr, num_layers)`.
+            Default None.
+        dtype(string, optional): The data type used in this cell. It can be
+            float32 or float64. Default float32.
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import StackedLSTMCell, RNN
+
+            inputs = paddle.rand((2, 4, 32))
+            cell = StackedLSTMCell(input_size=32, hidden_size=64)
+            rnn = RNN(cell=cell, inputs=inputs)
+            outputs, _ = rnn(inputs)  # [2, 4, 64]
+    """
+
+    def __init__(self,
+                 input_size,
+                 hidden_size,
+                 gate_activation=None,
+                 activation=None,
+                 forget_bias=1.0,
+                 num_layers=1,
+                 dropout=0.0,
+                 param_attr=None,
+                 bias_attr=None,
+                 dtype="float32"):
+        super(StackedLSTMCell, self).__init__()
+        self.dropout = utils.convert_to_list(dropout, num_layers, "dropout",
+                                             float)
+        param_attrs = StackedRNNCell.stack_param_attr(param_attr, num_layers)
+        bias_attrs = StackedRNNCell.stack_param_attr(bias_attr, num_layers)
+
+        self.cells = []
+        for i in range(num_layers):
+            if forget_bias is True:
+                bias_attrs[
+                    i].initializer = fluid.initializer.NumpyArrayInitializer(
+                        np.concatenate(
+                            np.zeros(2 * hidden_size),
+                            np.ones(hidden_size), np.zeros(hidden_size))
+                        .astype(dtype))
+                forget_bias = 0.0
+            self.cells.append(
+                self.add_sublayer(
+                    "lstm_%d" % i,
+                    BasicLSTMCell(
+                        input_size=input_size if i == 0 else hidden_size,
+                        hidden_size=hidden_size,
+                        gate_activation=gate_activation,
+                        activation=activation,
+                        forget_bias=forget_bias,
+                        param_attr=param_attrs[i],
+                        bias_attr=bias_attrs[i],
+                        dtype=dtype)))
+
+    def forward(self, inputs, states):
+        """
+        Performs the stacked LSTM cells sequentially. Each cell's `inputs` is
+        the `outputs` of the previous cell. And each cell's `states` is the
+        corresponding one in `states`.
+
+        Parameters:
+            inputs (Variable): The inputs for the first cell. It is a float32 or
+                float64 tensor with shape `[batch_size, input_size]`.
+            states (list): A list containing states for all cells orderly.
+            **kwargs: Additional keyword arguments, which passed to `cell.forward`
+                for all including cells.
+
+        Returns:
+            tuple: A tuple( :code:`(outputs, new_states)` ), where `outputs` is \
+                a tensor with shape `[batch_size, hidden_size]`, corresponding \
+                to :math:`h_{t}` in the formula of the last LSTM; `new_states` \
+                is a list composed of every LSTM `new_states` which is a pair \
+                of tensors standing for :math:`h_{t}, c_{t}` in the formula, \
+                and the data type and structure of these tensors all is same \
+                as that of `states`.
+        """
+        new_states = []
+        for i, cell in enumerate(self.cells):
+            outputs, new_state = cell(inputs, states[i])
+            outputs = layers.dropout(
+                outputs,
+                self.dropout[i],
+                dropout_implementation='upscale_in_train') if self.dropout[
+                    i] > 0 else outputs
+            inputs = outputs
+            new_states.append(new_state)
+        return outputs, new_states
+
+    @property
+    def state_shape(self):
+        """
+        The `state_shape` of StackedLSTMCell is a list composed of each including
+        LSTM cell's `state_shape`.
+
+        Returns:
+            list: A list composed of each including LSTM cell's `state_shape`.
+        """
+        return [cell.state_shape for cell in self.cells]
+
+
+class LSTM(Layer):
+    """
+    Applies a stacked multi-layer long short-term memory (LSTM) RNN to an input
+    sequence.
+
+    The formula for LSTM used here is as follows:
+
+    .. math::
+
+        i_{t} & = act_g(W_{x_{i}}x_{t} + W_{h_{i}}h_{t-1} + b_{i})
+
+        f_{t} & = act_g(W_{x_{f}}x_{t} + W_{h_{f}}h_{t-1} + b_{f} + forget\\_bias)
+
+        c_{t} & = f_{t}c_{t-1} + i_{t} act_c (W_{x_{c}}x_{t} + W_{h_{c}}h_{t-1} + b_{c})
+
+        o_{t} & = act_g(W_{x_{o}}x_{t} + W_{h_{o}}h_{t-1} + b_{o})
+
+        h_{t} & = o_{t} act_c (c_{t})
+
+
+    Parameters:
+        input_size (int): The input feature size for the first LSTM.
+        hidden_size (int): The hidden size for every LSTM.
+        gate_activation (function, optional): The activation function for gates
+            of LSTM, that is :math:`act_g` in the formula. Default: None,
+            representing for `fluid.layers.sigmoid`.
+        activation (function, optional): The non-gate activation function of
+            LSTM, that is :math:`act_c` in the formula. Default: None,
+            representing for 'fluid.layers.tanh'.
+        forget_bias (float, optional): forget bias used when computing forget
+            gate. It also can accept a boolean value `True`, which would set
+            :math:`forget\\_bias` as 0 but initialize :math:`b_{f}` as 1 and
+            :math:`b_{i}, b_{f}, b_{c}, b_{0}` as 0. This is recommended in
+            http://www.jmlr.org/proceedings/papers/v37/jozefowicz15.pdf .
+            Default 1.0.
+        num_layers(int, optional): The number of LSTM to be stacked. Default 1.
+        dropout(float|list|tuple, optional): The dropout probability after each
+            LSTM. It also can be a list or tuple, including dropout probabilities
+            for the corresponding LSTM. Default 0.0
+        is_reverse (bool, optional): Indicate whether to calculate in the reverse
+            order of input sequences. Default: `False`.
+        time_major (bool, optional): Indicate the data layout of Tensor included
+            in `input` and `output` tensors. If `False`, the data layout would
+            be batch major with shape `[batch_size, sequence_length, ...]`.  If
+            `True`, the data layout would be time major with shape
+            `[sequence_length, batch_size, ...]`. Default: `False`.
+        param_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(param_attr, num_layers)`.
+            Default None.
+        bias_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(bias_attr, num_layers)`.
+            Default None.
+        dtype(string, optional): The data type used in this cell. It can be
+            float32 or float64. Default float32.
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import LSTM
+
+            inputs = paddle.rand((2, 4, 32))
+            lstm = LSTM(input_size=32, hidden_size=64, num_layers=2)
+            outputs, _ = lstm(inputs)  # [2, 4, 64]
+    """
+
+    def __init__(self,
+                 input_size,
+                 hidden_size,
+                 gate_activation=None,
+                 activation=None,
+                 forget_bias=1.0,
+                 num_layers=1,
+                 dropout=0.0,
+                 is_reverse=False,
+                 time_major=False,
+                 param_attr=None,
+                 bias_attr=None,
+                 dtype='float32'):
+        super(LSTM, self).__init__()
+        lstm_cell = StackedLSTMCell(input_size, hidden_size, gate_activation,
+                                    activation, forget_bias, num_layers,
+                                    dropout, param_attr, bias_attr, dtype)
+        self.lstm = RNN(lstm_cell, is_reverse, time_major)
+
+    def forward(self, inputs, initial_states=None, sequence_length=None):
+        """
+        Performs the stacked multi-layer LSTM layer by layer. Each LSTM's `outputs`
+        is the `inputs` of the subsequent one.
+
+        Parameters:
+            inputs (Variable): The inputs for the first LSTM. It is a float32
+                or float64 tensor shaped `[batch_size, sequence_length, input_size]`.
+            initial_states (list|None, optional): A list containing initial states 
+                of all stacked LSTM, and the initial states of each LSTM is a pair
+                of tensors shaped `[batch_size, hidden_size]`. If not provided,
+                use 0 as initial states. Default None.
+            sequence_length (Variable, optional): A tensor with shape `[batch_size]`.
+                It stores real length of each instance, thus enables users to extract
+                the last valid state when past a batch element's sequence length for
+                correctness. If not provided, the paddings would be treated same as
+                non-padding inputs. Default None.
+
+        Returns:
+            tuple: A tuple( :code:`(outputs, final_states)` ), where `outputs` \
+                is the output of last LSTM and it is a tensor with shape \
+                `[batch_size, sequence_length, hidden_size]` and has the same \
+                data type as `inputs`, `final_states` is the counterpart of \
+                `initial_states` at last time step, thus has the same structure \
+                with it and has tensors with same shapes data types. 
+        """
+        return self.lstm(inputs, initial_states, sequence_length)
+
+
+class BidirectionalRNN(Layer):
+    """
+    Wrapper for bidirectional RNN. It assembles two RNNCell instances to perform
+    forward and backward RNN separately, and merge outputs of these two RNN
+    according to `merge_mode`.
+
+    Parameters:
+        cell_fw (RNNCell): A RNNCell instance used for forward RNN.
+        cell_bw (RNNCell): A RNNCell instance used for backward RNN.
+        merge_mode (str|None, optional): The way to merget outputs of forward and
+            backward RNN. It can be `concat`, `sum`, `ave`, `mul`, `zip` and None,
+            where None stands for make the two `outputs` as a tuple, `zip` stands
+            for make each two corresponding tensors of the two `outputs` as a tuple.
+            Default `concat`
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            from paddle.incubate.hapi.text import BasicLSTMCell, StackedRNNCell
+
+            inputs = paddle.rand((2, 4, 32))
+            cell_fw = StackedLSTMCell(32, 64)
+            cell_bw = StackedLSTMCell(32, 64)
+            bi_rnn = BidirectionalRNN(cell_fw, cell_bw)
+            outputs, _ = bi_rnn(inputs)  # [2, 4, 128]
+    """
+
+    def __init__(self,
+                 cell_fw,
+                 cell_bw,
+                 merge_mode='concat',
+                 time_major=False,
+                 cell_cls=None,
+                 **kwargs):
+        super(BidirectionalRNN, self).__init__()
+        self.rnn_fw = RNN(cell_fw, is_reverse=False, time_major=time_major)
+        self.rnn_bw = RNN(cell_bw, is_reverse=True, time_major=time_major)
+        if merge_mode == 'concat':
+            self.merge_func = lambda x, y: layers.concat([x, y], -1)
+        elif merge_mode == 'sum':
+            self.merge_func = lambda x, y: layers.elementwise_add(x, y)
+        elif merge_mode == 'ave':
+            self.merge_func = lambda x, y: layers.scale(
+                layers.elementwise_add(x, y), 0.5)
+        elif merge_mode == 'mul':
+            self.merge_func = lambda x, y: layers.elementwise_mul(x, y)
+        elif merge_mode == 'zip':
+            self.merge_func = lambda x, y: (x, y)
+        elif merge_mode is None:
+            self.merge_func = None
+        else:
+            raise ValueError('Unsupported value for `merge_mode`: %s' %
+                             merge_mode)
+
+    def forward(self,
+                inputs,
+                initial_states=None,
+                sequence_length=None,
+                **kwargs):
+        """
+        Performs forward and backward RNN separately, and merge outputs of these
+        two RNN according to `merge_mode`.
+
+        Parameters:
+            inputs (Variable): A (possibly nested structure of) tensor variable[s]. 
+                The shape of tensor should be `[batch_size, sequence_length, ...]`
+                for `time_major == False` or `[sequence_length, batch_size, ...]`
+                for `time_major == True`. It represents the inputs to be unrolled
+                in both forward and backward RNN.
+            initial_states (Variable|list|tuple): If it is a list or tuple, its
+                length should be 2 to include initial states of forward and backward
+                RNN separately. Otherwise it would be used twice for the two RNN. 
+                If None, `cell.get_initial_states` would be used to produce the initial
+                states. Default None.
+            sequence_length (Variable, optional): A tensor with shape `[batch_size]`.
+                It stores real length of each instance, thus enables users to extract
+                the last valid state when past a batch element's sequence length for
+                correctness. If not provided, the paddings would be treated same as
+                non-padding inputs. Default None.
+            **kwargs: Additional keyword arguments. Arguments passed to `cell.forward`.
+
+        Returns:
+            tuple: A tuple( :code:`(outputs, final_states)` ), where `outputs` \
+                is produced by merge outputs of forward and backward RNN according \
+                to `merge_mode`, `final_states` is a pair including `final_states` \
+                of forward and backward RNN.
+        """
+        if isinstance(initial_states, (list, tuple)):
+            assert len(
+                initial_states
+            ) == 2, "length of initial_states should be 2 when it is a list/tuple"
+        else:
+            initial_states = [initial_states, initial_states]
+        outputs_fw, states_fw = self.rnn_fw(inputs, initial_states[0],
+                                            sequence_length, **kwargs)
+        outputs_bw, states_bw = self.rnn_bw(inputs, initial_states[1],
+                                            sequence_length, **kwargs)
+        outputs = map_structure(
+            self.merge_func, outputs_fw,
+            outputs_bw) if self.merge_func else (outputs_fw, outputs_bw)
+        return outputs, (states_fw, states_bw)
+
+    @staticmethod
+    def bidirect_param_attr(param_attr):
+        """
+        Converts `param_attr` to a pair of `param_attr` when it is not a list
+        or tuple with length 2, also rename every one by appending a suffix to
+        avoid having same names when `param_attr` contains a name.
+
+        Parameters:
+            param_attr (list|tuple|ParamAttr): A list, tuple or something can be
+                converted to a ParamAttr instance by `ParamAttr._to_attr`. When
+                it is a list or tuple, its length must be 2.
+
+        Returns:
+            list: A pair composed of forward and backward RNN cell's `param_attr`.
+        """
+        if isinstance(param_attr, (list, tuple)):
+            assert len(
+                param_attr
+            ) == 2, "length of param_attr should be 2 when it is a list/tuple"
+            param_attrs = param_attr
+        else:
+            param_attrs = []
+            attr = fluid.ParamAttr._to_attr(param_attr)
+            attr_fw = copy.deepcopy(attr)
+            if attr.name:
+                attr_fw.name = attr_fw.name + "_fw"
+            param_attrs.append(attr_fw)
+            attr_bw = copy.deepcopy(attr)
+            if attr.name:
+                attr_bw.name = attr_bw.name + "_bw"
+            param_attrs.append(attr_bw)
+        return param_attrs
+
+
+class BidirectionalLSTM(Layer):
+    """
+    Applies a bidirectional multi-layer long short-term memory (LSTM) RNN to an
+    input sequence. 
+    
+    Bidirection interaction can happen after each layer or only after the last
+    layer according to the  `merge_each_layer` setting. The way to interact,
+    that is how to merge outputs of the two direction, is determined by `merge_mode`.
+
+    The formula for LSTM used here is as follows:
+
+    .. math::
+
+        i_{t} & = act_g(W_{x_{i}}x_{t} + W_{h_{i}}h_{t-1} + b_{i})
+
+        f_{t} & = act_g(W_{x_{f}}x_{t} + W_{h_{f}}h_{t-1} + b_{f} + forget\\_bias)
+
+        c_{t} & = f_{t}c_{t-1} + i_{t} act_c (W_{x_{c}}x_{t} + W_{h_{c}}h_{t-1} + b_{c})
+
+        o_{t} & = act_g(W_{x_{o}}x_{t} + W_{h_{o}}h_{t-1} + b_{o})
+
+        h_{t} & = o_{t} act_c (c_{t})
+
+
+    Parameters:
+        input_size (int): The input feature size for the first LSTM.
+        hidden_size (int): The hidden size for every LSTM.
+        gate_activation (function, optional): The activation function for gates
+            of LSTM, that is :math:`act_g` in the formula. Default: None,
+            representing for `fluid.layers.sigmoid`.
+        activation (function, optional): The non-gate activation function of
+            LSTM, that is :math:`act_c` in the formula. Default: None,
+            representing for 'fluid.layers.tanh'.
+        forget_bias (float, optional): forget bias used when computing forget
+            gate. It also can accept a boolean value `True`, which would set
+            :math:`forget\\_bias` as 0 but initialize :math:`b_{f}` as 1 and
+            :math:`b_{i}, b_{f}, b_{c}, b_{0}` as 0. This is recommended in
+            http://www.jmlr.org/proceedings/papers/v37/jozefowicz15.pdf .
+            Default 1.0.
+        num_layers(int, optional): The number of LSTM to be stacked. Default 1.
+        dropout(float|list|tuple, optional): The dropout probability after each
+            LSTM. It also can be a list or tuple, including dropout probabilities
+            for the corresponding LSTM. Default 0.0
+        merge_mode (str|None, optional): The way to merget outputs of forward and
+            backward RNN. It can be `concat`, `sum`, `ave`, `mul`, `zip` and None,
+            where None stands for make the two `outputs` as a tuple, `zip` stands
+            for make each two corresponding tensors of the two `outputs` as a tuple.
+            Default `concat`
+        merge_each_layer (bool, optional): Indicate whether bidirection interaction
+            happens after each layer or only after the last layer. Default: `False`.
+        time_major (bool, optional): Indicate the data layout of Tensor included
+            in `input` and `output` tensors. If `False`, the data layout would
+            be batch major with shape `[batch_size, sequence_length, ...]`.  If
+            `True`, the data layout would be time major with shape
+            `[sequence_length, batch_size, ...]`. Default: `False`.
+        param_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(param_attr, num_layers)`.
+            Default None.
+        bias_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(bias_attr, num_layers)`.
+            Default None.
+        dtype(string, optional): The data type used in this cell. It can be
+            float32 or float64. Default float32.
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import BidirectionalLSTM
+
+            inputs = paddle.rand((2, 4, 32))
+            bi_lstm = BidirectionalLSTM(input_size=32, hidden_size=64, num_layers=2)
+            outputs, _ = bi_lstm(inputs)  # [2, 4, 128]
+    """
+
+    def __init__(self,
+                 input_size,
+                 hidden_size,
+                 gate_activation=None,
+                 activation=None,
+                 forget_bias=1.0,
+                 num_layers=1,
+                 dropout=0.0,
+                 merge_mode='concat',
+                 merge_each_layer=False,
+                 time_major=False,
+                 param_attr=None,
+                 bias_attr=None,
+                 dtype='float32'):
+        super(BidirectionalLSTM, self).__init__()
+        self.num_layers = num_layers
+        self.merge_mode = merge_mode
+        self.merge_each_layer = merge_each_layer
+        param_attrs = BidirectionalRNN.bidirect_param_attr(param_attr)
+        bias_attrs = BidirectionalRNN.bidirect_param_attr(bias_attr)
+        if not merge_each_layer:
+            cell_fw = StackedLSTMCell(input_size, hidden_size, gate_activation,
+                                      activation, forget_bias, num_layers,
+                                      dropout, param_attrs[0], bias_attrs[0],
+                                      dtype)
+            cell_bw = StackedLSTMCell(input_size, hidden_size, gate_activation,
+                                      activation, forget_bias, num_layers,
+                                      dropout, param_attrs[1], bias_attrs[1],
+                                      dtype)
+            self.lstm = BidirectionalRNN(
+                cell_fw, cell_bw, merge_mode=merge_mode, time_major=time_major)
+        else:
+            fw_param_attrs = StackedRNNCell.stack_param_attr(param_attrs[0],
+                                                             num_layers)
+            bw_param_attrs = StackedRNNCell.stack_param_attr(param_attrs[1],
+                                                             num_layers)
+            fw_bias_attrs = StackedRNNCell.stack_param_attr(bias_attrs[0],
+                                                            num_layers)
+            bw_bias_attrs = StackedRNNCell.stack_param_attr(bias_attrs[1],
+                                                            num_layers)
+
+            # maybe design cell including both forward and backward later
+            self.lstm = []
+            for i in range(num_layers):
+                cell_fw = StackedLSTMCell(
+                    input_size if i == 0 else (hidden_size * 2
+                                               if merge_mode == 'concat' else
+                                               hidden_size), hidden_size,
+                    gate_activation, activation, forget_bias, 1, dropout,
+                    fw_param_attrs[i], fw_bias_attrs[i], dtype)
+                cell_bw = StackedLSTMCell(
+                    input_size if i == 0 else (hidden_size * 2
+                                               if merge_mode == 'concat' else
+                                               hidden_size), hidden_size,
+                    gate_activation, activation, forget_bias, 1, dropout,
+                    bw_param_attrs[i], bw_bias_attrs[i], dtype)
+                self.lstm.append(
+                    self.add_sublayer(
+                        "lstm_%d" % i,
+                        BidirectionalRNN(
+                            cell_fw,
+                            cell_bw,
+                            merge_mode=merge_mode,
+                            time_major=time_major)))
+
+    def forward(self, inputs, initial_states=None, sequence_length=None):
+        """
+        Performs bidirectional multi-layer LSTM layer by layer. Each LSTM's `outputs`
+        is the `inputs` of the subsequent one, or when `merge_each_layer` is True,
+        merged outputs would be the `inputs` of the subsequent one.
+
+        Parameters:
+            inputs (Variable): The inputs for the first LSTM. It is a float32
+                or float64 tensor shaped `[batch_size, sequence_length, input_size]`.
+            initial_states (list|None, optional): A list containing initial states 
+                of all stacked LSTM. If `merge_each_layer` is True, the length of
+                list should be `num_layers` and a single value would be reused for
+                `num_layers`; Otherwise, the length should be 2 and a single value
+                would be reused twice. If not provided, use 0 as initial states.
+                Default None.
+            sequence_length (Variable, optional): A tensor with shape `[batch_size]`.
+                It stores real length of each instance, thus enables users to extract
+                the last valid state when past a batch element's sequence length for
+                correctness. If not provided, the paddings would be treated same as
+                non-padding inputs. Default None.
+
+        Returns:
+            tuple: A tuple( :code:`(outputs, final_states)` ), where `outputs` \
+                is the output of last bidirectional LSTM; `final_states` is a \
+                pair including `final_states` of forward and backward LSTM when \
+                `merge_each_layer` is False or a list including `final_states` \
+                of all stacked bidirectional LSTM, and it has tensors with same \
+                shapes data types as `initial_states`.
+        """
+        if not self.merge_each_layer:
+            return self.lstm(inputs, initial_states, sequence_length)
+        else:
+            if isinstance(initial_states, (list, tuple)):
+                assert len(initial_states) == self.num_layers, (
+                    "length of initial_states should be %d when it is a list/tuple"
+                    % self.num_layers)
+            else:
+                initial_states = [initial_states] * self.num_layers
+            stacked_states = []
+            for i in range(self.num_layers):
+                outputs, states = self.lstm[i](inputs, initial_states[i],
+                                               sequence_length)
+                inputs = outputs
+                stacked_states.append(states)
+            return outputs, stacked_states
+
+
+class StackedGRUCell(RNNCell):
+    """
+    Wrapper allowing a stack of GRU cells to behave as a single cell. It is used
+    to implement stacked GRU.
+
+    The formula for GRU used here is as follows:
+
+    .. math::
+
+        u_t & = act_g(W_{ux}x_{t} + W_{uh}h_{t-1} + b_u)
+
+        r_t & = act_g(W_{rx}x_{t} + W_{rh}h_{t-1} + b_r)
+
+        \\tilde{h_t} & = act_c(W_{cx}x_{t} + W_{ch}(r_t \odot h_{t-1}) + b_c)
+
+        h_t & = u_t \odot h_{t-1} + (1-u_t) \odot \\tilde{h_t}
+
+
+    Parameters:
+        input_size (int): The input size for the first GRU cell.
+        hidden_size (int): The hidden size for every GRU cell.
+        gate_activation (function, optional): The activation function for gates
+            of GRU, that is :math:`act_g` in the formula. Default: None,
+            representing for `fluid.layers.sigmoid`.
+        activation (function, optional): The non-gate activation function of
+            GRU, that is :math:`act_c` in the formula. Default: None,
+            representing for 'fluid.layers.tanh'.
+        num_layers(int, optional): The number of LSTM to be stacked. Default 1.
+        dropout(float|list|tuple, optional): The dropout probability after each
+            GRU. It also can be a list or tuple, including dropout probabilities
+            for the corresponding GRU. Default 0.0
+        param_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(param_attr, num_layers)`.
+            Default None.
+        bias_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(bias_attr, num_layers)`.
+            Default None.
+        dtype(string, optional): The data type used in this cell. It can be
+            float32 or float64. Default float32.
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import StackedLSTMCell, RNN
+
+            inputs = paddle.rand((2, 4, 32))
+            cell = StackedGRUCell(input_size=32, hidden_size=64)
+            rnn = RNN(cell=cell, inputs=inputs)
+            outputs, _ = rnn(inputs)  # [2, 4, 64]
+    """
+
+    def __init__(self,
+                 input_size,
+                 hidden_size,
+                 gate_activation=None,
+                 activation=None,
+                 num_layers=1,
+                 dropout=0.0,
+                 param_attr=None,
+                 bias_attr=None,
+                 dtype="float32"):
+        super(StackedGRUCell, self).__init__()
+        self.dropout = utils.convert_to_list(dropout, num_layers, "dropout",
+                                             float)
+        param_attrs = StackedRNNCell.stack_param_attr(param_attr, num_layers)
+        bias_attrs = StackedRNNCell.stack_param_attr(bias_attr, num_layers)
+
+        self.cells = []
+        for i in range(num_layers):
+            self.cells.append(
+                self.add_sublayer(
+                    "gru_%d" % i,
+                    BasicGRUCell(
+                        input_size=input_size if i == 0 else hidden_size,
+                        hidden_size=hidden_size,
+                        gate_activation=gate_activation,
+                        activation=activation,
+                        param_attr=param_attrs[i],
+                        bias_attr=bias_attrs[i],
+                        dtype=dtype)))
+
+    def forward(self, inputs, states):
+        """
+        Performs the stacked GRU cells sequentially. Each cell's `inputs` is
+        the `outputs` of the previous cell. And each cell's `states` is the
+        corresponding one in `states`.
+
+        Parameters:
+            inputs (Variable): The inputs for the first cell. It is a float32 or
+                float64 tensor with shape `[batch_size, input_size]`.
+            states (list): A list containing states for all cells orderly.
+            **kwargs: Additional keyword arguments, which passed to `cell.forward`
+                for all including cells.
+
+        Returns:
+            tuple: A tuple( :code:`(outputs, new_states)` ), where `outputs` is \
+                a tensor with shape `[batch_size, hidden_size]`, corresponding \
+                to :math:`h_{t}` in the formula of the last GRU; `new_states` \
+                is a list composed of every GRU `new_states` which is also \
+                :math:`h_{t}` in the formula, and the data type and structure \
+                of these tensors all is same as that of `states`.
+        """
+        new_states = []
+        for i, cell in enumerate(self.cells):
+            outputs, new_state = cell(inputs, states[i])
+            outputs = layers.dropout(
+                outputs,
+                self.dropout[i],
+                dropout_implementation='upscale_in_train') if self.dropout[
+                    i] > 0 else outputs
+            inputs = outputs
+            new_states.append(new_state)
+        return outputs, new_states
+
+    @property
+    def state_shape(self):
+        """
+        The `state_shape` of StackedGRUCell is a list composed of each including
+        GRU cell's `state_shape`.
+
+        Returns:
+            list: A list composed of each including GRU cell's `state_shape`.
+        """
+        return [cell.state_shape for cell in self.cells]
+
+
+class GRU(Layer):
+    """
+    Applies a stacked multi-layer gated recurrent unit (GRU) RNN to an input
+    sequence.
+
+    The formula for GRU used here is as follows:
+
+    .. math::
+
+        u_t & = act_g(W_{ux}x_{t} + W_{uh}h_{t-1} + b_u)
+
+        r_t & = act_g(W_{rx}x_{t} + W_{rh}h_{t-1} + b_r)
+
+        \\tilde{h_t} & = act_c(W_{cx}x_{t} + W_{ch}(r_t \odot h_{t-1}) + b_c)
+
+        h_t & = u_t \odot h_{t-1} + (1-u_t) \odot \\tilde{h_t}
+
+
+    Parameters:
+        input_size (int): The input size for the first GRU cell.
+        hidden_size (int): The hidden size for every GRU cell.
+        gate_activation (function, optional): The activation function for gates
+            of GRU, that is :math:`act_g` in the formula. Default: None,
+            representing for `fluid.layers.sigmoid`.
+        activation (function, optional): The non-gate activation function of
+            GRU, that is :math:`act_c` in the formula. Default: None,
+            representing for 'fluid.layers.tanh'.
+        num_layers(int, optional): The number of GRU to be stacked. Default 1.
+        dropout(float|list|tuple, optional): The dropout probability after each
+            GRU. It also can be a list or tuple, including dropout probabilities
+            for the corresponding GRU. Default 0.0
+        is_reverse (bool, optional): Indicate whether to calculate in the reverse
+            order of input sequences. Default: `False`.
+        time_major (bool, optional): Indicate the data layout of Tensor included
+            in `input` and `output` tensors. If `False`, the data layout would
+            be batch major with shape `[batch_size, sequence_length, ...]`.  If
+            `True`, the data layout would be time major with shape
+            `[sequence_length, batch_size, ...]`. Default: `False`.
+        param_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(param_attr, num_layers)`.
+            Default None.
+        bias_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(bias_attr, num_layers)`.
+            Default None.
+        dtype(string, optional): The data type used in this cell. It can be
+            float32 or float64. Default float32.
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import LSTM
+
+            inputs = paddle.rand((2, 4, 32))
+            gru = GRU(input_size=32, hidden_size=64, num_layers=2)
+            outputs, _ = gru(inputs)  # [2, 4, 64]
+    """
+
+    def __init__(self,
+                 input_size,
+                 hidden_size,
+                 gate_activation=None,
+                 activation=None,
+                 num_layers=1,
+                 dropout=0.0,
+                 is_reverse=False,
+                 time_major=False,
+                 param_attr=None,
+                 bias_attr=None,
+                 dtype='float32'):
+        super(GRU, self).__init__()
+        gru_cell = StackedGRUCell(input_size, hidden_size, gate_activation,
+                                  activation, num_layers, dropout, param_attr,
+                                  bias_attr, dtype)
+        self.gru = RNN(gru_cell, is_reverse, time_major)
+
+    def forward(self, inputs, initial_states=None, sequence_length=None):
+        """
+        Performs the stacked multi-layer GRU layer by layer. Each GRU's `outputs`
+        is the `inputs` of the subsequent one.
+
+        Parameters:
+            inputs (Variable): The inputs for the first GRU. It is a float32
+                or float64 tensor shaped `[batch_size, sequence_length, input_size]`.
+            initial_states (list|None, optional): A list containing initial states 
+                of all stacked GRU, and the initial states of each GRU is a tensor
+                shaped `[batch_size, hidden_size]`. If not provided, use 0 as initial
+                states. Default None.
+            sequence_length (Variable, optional): A tensor with shape `[batch_size]`.
+                It stores real length of each instance, thus enables users to extract
+                the last valid state when past a batch element's sequence length for
+                correctness. If not provided, the paddings would be treated same as
+                non-padding inputs. Default None.
+
+        Returns:
+            tuple: A tuple( :code:`(outputs, final_states)` ), where `outputs` \
+                is the output of last GRU and it is a tensor with shape \
+                `[batch_size, sequence_length, hidden_size]` and has the same \
+                data type as `inputs`, `final_states` is the counterpart of \
+                `initial_states` at last time step, thus has the same structure \
+                with it and has tensors with same shapes data types.
+        """
+        return self.gru(inputs, initial_states, sequence_length)
+
+
+class BidirectionalGRU(Layer):
+    """
+    Applies a bidirectional multi-layer gated recurrent unit (GRU) RNN to an input
+    sequence.
+    
+    Bidirection interaction can happen after each layer or only after the last
+    layer according to the  `merge_each_layer` setting. The way to interact,
+    that is how to merge outputs of the two direction, is determined by `merge_mode`.
+
+    The formula for GRU used here is as follows:
+
+    .. math::
+
+        u_t & = act_g(W_{ux}x_{t} + W_{uh}h_{t-1} + b_u)
+
+        r_t & = act_g(W_{rx}x_{t} + W_{rh}h_{t-1} + b_r)
+
+        \\tilde{h_t} & = act_c(W_{cx}x_{t} + W_{ch}(r_t \odot h_{t-1}) + b_c)
+
+        h_t & = u_t \odot h_{t-1} + (1-u_t) \odot \\tilde{h_t}
+
+
+    Parameters:
+        input_size (int): The input size for the first GRU cell.
+        hidden_size (int): The hidden size for every GRU cell.
+        gate_activation (function, optional): The activation function for gates
+            of GRU, that is :math:`act_g` in the formula. Default: None,
+            representing for `fluid.layers.sigmoid`.
+        activation (function, optional): The non-gate activation function of
+            GRU, that is :math:`act_c` in the formula. Default: None,
+            representing for 'fluid.layers.tanh'.
+        num_layers(int, optional): The number of GRU to be stacked. Default 1.
+        dropout(float|list|tuple, optional): The dropout probability after each
+            GRU. It also can be a list or tuple, including dropout probabilities
+            for the corresponding GRU. Default 0.0
+        merge_mode (str|None, optional): The way to merget outputs of forward and
+            backward RNN. It can be `concat`, `sum`, `ave`, `mul`, `zip` and None,
+            where None stands for make the two `outputs` as a tuple, `zip` stands
+            for make each two corresponding tensors of the two `outputs` as a tuple.
+            Default `concat`
+        merge_each_layer (bool, optional): Indicate whether bidirection interaction
+            happens after each layer or only after the last layer. Default: `False`.
+        time_major (bool, optional): Indicate the data layout of Tensor included
+            in `input` and `output` tensors. If `False`, the data layout would
+            be batch major with shape `[batch_size, sequence_length, ...]`.  If
+            `True`, the data layout would be time major with shape
+            `[sequence_length, batch_size, ...]`. Default: `False`.
+        param_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(param_attr, num_layers)`.
+            Default None.
+        bias_attr (list|tuple|ParamAttr): A list, tuple or something can be
+            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
+            a list or tuple, it's length must equal to `num_layers`. Otherwise,
+            construct a list by `StackedRNNCell.stack_param_attr(bias_attr, num_layers)`.
+            Default None.
+        dtype(string, optional): The data type used in this cell. It can be
+            float32 or float64. Default float32.
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import BidirectionalGRU
+
+            inputs = paddle.rand((2, 4, 32))
+            gru = BidirectionalGRU(input_size=32, hidden_size=64, num_layers=2)
+            outputs, _ = bi_gru(inputs)  # [2, 4, 128]
+    """
+
+    def __init__(self,
+                 input_size,
+                 hidden_size,
+                 gate_activation=None,
+                 activation=None,
+                 forget_bias=1.0,
+                 num_layers=1,
+                 dropout=0.0,
+                 merge_mode='concat',
+                 merge_each_layer=False,
+                 time_major=False,
+                 param_attr=None,
+                 bias_attr=None,
+                 dtype='float32'):
+        super(BidirectionalGRU, self).__init__()
+        self.num_layers = num_layers
+        self.merge_mode = merge_mode
+        self.merge_each_layer = merge_each_layer
+        param_attrs = BidirectionalRNN.bidirect_param_attr(param_attr)
+        bias_attrs = BidirectionalRNN.bidirect_param_attr(bias_attr)
+        if not merge_each_layer:
+            cell_fw = StackedGRUCell(input_size, hidden_size, gate_activation,
+                                     activation, num_layers, dropout,
+                                     param_attrs[0], bias_attrs[0], dtype)
+            cell_bw = StackedGRUCell(input_size, hidden_size, gate_activation,
+                                     activation, num_layers, dropout,
+                                     param_attrs[1], bias_attrs[1], dtype)
+            self.gru = BidirectionalRNN(
+                cell_fw, cell_bw, merge_mode=merge_mode, time_major=time_major)
+        else:
+            fw_param_attrs = StackedRNNCell.stack_param_attr(param_attrs[0],
+                                                             num_layers)
+            bw_param_attrs = StackedRNNCell.stack_param_attr(param_attrs[1],
+                                                             num_layers)
+            fw_bias_attrs = StackedRNNCell.stack_param_attr(bias_attrs[0],
+                                                            num_layers)
+            bw_bias_attrs = StackedRNNCell.stack_param_attr(bias_attrs[1],
+                                                            num_layers)
+
+            # maybe design cell including both forward and backward later
+            self.gru = []
+            for i in range(num_layers):
+                cell_fw = StackedGRUCell(input_size if i == 0 else (
+                    hidden_size * 2 if merge_mode == 'concat' else
+                    hidden_size), hidden_size, gate_activation, activation, 1,
+                                         dropout, fw_param_attrs[i],
+                                         fw_bias_attrs[i], dtype)
+                cell_bw = StackedGRUCell(input_size if i == 0 else (
+                    hidden_size * 2 if merge_mode == 'concat' else
+                    hidden_size), hidden_size, gate_activation, activation, 1,
+                                         dropout, bw_param_attrs[i],
+                                         bw_bias_attrs[i], dtype)
+                self.gru.append(
+                    self.add_sublayer(
+                        "gru_%d" % i,
+                        BidirectionalRNN(
+                            cell_fw,
+                            cell_bw,
+                            merge_mode=merge_mode,
+                            time_major=time_major)))
+
+    def forward(self, inputs, initial_states=None, sequence_length=None):
+        """
+        Performs bidirectional multi-layer GRU layer by layer. Each GRU's `outputs`
+        is the `inputs` of the subsequent one, or when `merge_each_layer` is True,
+        merged outputs would be the `inputs` of the subsequent one.
+
+        Parameters:
+            inputs (Variable): The inputs for the first GRU. It is a float32
+                or float64 tensor shaped `[batch_size, sequence_length, input_size]`.
+            initial_states (list|None, optional): A list containing initial states 
+                of all stacked GRU. If `merge_each_layer` is True, the length of
+                list should be `num_layers` and a single value would be reused for
+                `num_layers`; Otherwise, the length should be 2 and a single value
+                would be reused twice. If not provided, use 0 as initial states.
+                Default None.
+            sequence_length (Variable, optional): A tensor with shape `[batch_size]`.
+                It stores real length of each instance, thus enables users to extract
+                the last valid state when past a batch element's sequence length for
+                correctness. If not provided, the paddings would be treated same as
+                non-padding inputs. Default None.
+
+        Returns:
+            tuple: A tuple( :code:`(outputs, final_states)` ), where `outputs` \
+                is the output of last bidirectional GRU; `final_states` is a \
+                pair including `final_states` of forward and backward GRU when \
+                `merge_each_layer` is False or a list including `final_states` \
+                of all stacked bidirectional GRU, and it has tensors with same \
+                shapes data types as `initial_states`.
+        """
+        if not self.merge_each_layer:
+            return self.gru(inputs, initial_states, sequence_length)
+        else:
+            if isinstance(initial_states, (list, tuple)):
+                assert len(initial_states) == self.num_layers, (
+                    "length of initial_states should be %d when it is a list/tuple"
+                    % self.num_layers)
+            else:
+                initial_states = [initial_states] * self.num_layers
+            stacked_states = []
+            for i in range(self.num_layers):
+                outputs, states = self.gru[i](inputs, initial_states[i],
+                                              sequence_length)
+                inputs = outputs
+                stacked_states.append(states)
+            return outputs, stacked_states
+
+
 class DynamicDecode(Layer):
+    """
+    DynamicDecode integrates an Decoder instance to perform dynamic decoding.
+
+    It performs :code:`decoder.step()` repeatedly until the returned Tensor
+    indicating finished status contains all True values or the number of
+    decoding step reaches to :attr:`max_step_num`.
+
+    :code:`decoder.initialize()` would be called once before the decoding loop.
+    If the `decoder` has implemented `finalize` method, :code:`decoder.finalize()`
+    would be called once after the decoding loop.
+
+    Parameters:
+        decoder (Decoder): An instance of `Decoder`.
+        max_step_num (int, optional): The maximum number of steps. If not provided,
+            decode until the decoder is fully done, or in other words, the returned
+            Tensor by :code:`decoder.step()` indicating finished status contains
+            all True. Default `None`.
+        output_time_major (bool, optional): Indicate the data layout of Tensor included
+            in the final outputs(the first returned value of this method). If
+            attr:`False`, the data layout would be batch major with shape
+            `[batch_size, seq_len, ...]`.  If attr:`True`, the data layout would
+            be time major with shape `[seq_len, batch_size, ...]`. Default: `False`.
+        impute_finished (bool, optional): If `True`, then states get copied through
+            for batch entries which are marked as finished, which differs with the
+            unfinished using the new states returned by :code:`decoder.step()` and
+            ensures that the final states have the correct values. Otherwise, states
+            wouldn't be copied through when finished. If the returned `final_states`
+            is needed, it should be set as True, which causes some slowdown.
+            Default `False`.
+        is_test (bool, optional): A flag indicating whether to use test mode. In
+            test mode, it is more memory saving. Default `False`.
+        return_length (bool, optional):  A flag indicating whether to return an
+            extra Tensor variable in the output tuple, which stores the actual
+            lengths of all decoded sequences. Default `False`.
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import StackedLSTMCell, RNN
+
+            vocab_size, d_model, = 100, 32
+            encoder_output = paddle.rand((2, 4, d_model))
+            trg_embeder = fluid.dygraph.Embedding(size=[vocab_size, d_model])
+            output_layer = fluid.dygraph.Linear(d_model, vocab_size)
+            cell = StackedLSTMCell(input_size=d_model, hidden_size=d_model)
+            decoder = BeamSearchDecoder(decoder_cell,
+                                        start_token=0,
+                                        end_token=1,
+                                        beam_size=4,
+                                        embedding_fn=trg_embeder,
+                                        output_fn=output_layer)
+            dynamic_decoder = DynamicDecode(decoder, max_step_num=10)
+            outputs = dynamic_decoder(cell.get_initial_states(encoder_output))
+    """
+
     def __init__(self,
                  decoder,
                  max_step_num=None,
@@ -895,6 +2204,35 @@ class DynamicDecode(Layer):
         self.return_length = return_length
 
     def forward(self, inits=None, **kwargs):
+        """
+        Performs :code:`decoder.step()` repeatedly until the returned Tensor
+        indicating finished status contains all True values or the number of
+        decoding step reaches to :attr:`max_step_num`.
+
+        :code:`decoder.initialize()` would be called once before the decoding loop.
+        If the `decoder` has implemented `finalize` method, :code:`decoder.finalize()`
+        would be called once after the decoding loop.
+
+        Parameters:
+            inits (object, optional): Argument passed to `decoder.initialize`.
+                Default `None`.
+            **kwargs: Additional keyword arguments. Arguments passed to `decoder.step`.
+
+        Returns:
+            tuple: A tuple( :code:`(final_outputs, final_states, sequence_lengths)` ) \
+                when `return_length` is True, otherwise a tuple( :code:`(final_outputs, final_states)` ). \
+                The final outputs and states, both are Tensor or nested structure of Tensor. \
+                `final_outputs` has the same structure and data types as the :code:`outputs` \
+                returned by :code:`decoder.step()` , and each Tenser in `final_outputs` \
+                is the stacked of all decoding steps' outputs, which might be revised \
+                by :code:`decoder.finalize()` if the decoder has implemented `finalize`. \
+                `final_states` is the counterpart at last time step of initial states \
+                returned by :code:`decoder.initialize()` , thus has the same structure \
+                with it and has tensors with same shapes and data types. `sequence_lengths` \
+                is an `int64` tensor with the same shape as `finished` returned \
+                by :code:`decoder.initialize()` , and it stores the actual lengths of \
+                all decoded sequences.
+        """
         if fluid.in_dygraph_mode():
 
             class ArrayWrapper(object):
@@ -1926,426 +3264,3 @@ class SequenceTagging(Layer):
             self.linear_chain_crf.weight = self.crf_decoding.weight
             crf_decode = self.crf_decoding(input=emission, length=lengths)
             return crf_decode, lengths
-
-
-class StackedRNNCell(RNNCell):
-    def __init__(self, cells):
-        self.cells = []
-        for i, cell in enumerate(cells):
-            self.cells.append(self.add_sublayer("cell_%d" % i, cell))
-
-    def forward(self, inputs, states):
-        pass
-
-    @staticmethod
-    def stack_param_attr(param_attr, n):
-        if isinstance(param_attr, (list, tuple)):
-            assert len(param_attr) == n, (
-                "length of param_attr should be %d when it is a list/tuple" %
-                n)
-            param_attrs = [
-                fluid.ParamAttr._to_attr(attr) for attr in param_attr
-            ]
-        else:
-            param_attrs = []
-            attr = fluid.ParamAttr._to_attr(param_attr)
-            for i in range(n):
-                attr_i = copy.deepcopy(attr)
-                if attr.name:
-                    attr_i.name = attr_i.name + "_" + str(i)
-                param_attrs.append(attr_i)
-        return param_attrs
-
-    @property
-    def state_shape(self):
-        return [cell.state_shape for cell in self.cells]
-
-
-class StackedLSTMCell(RNNCell):
-    """
-    """
-
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 gate_activation=None,
-                 activation=None,
-                 forget_bias=1.0,
-                 num_layers=1,
-                 dropout=0.0,
-                 param_attr=None,
-                 bias_attr=None,
-                 dtype="float32"):
-        super(StackedLSTMCell, self).__init__()
-        self.dropout = utils.convert_to_list(dropout, num_layers, "dropout",
-                                             float)
-        param_attrs = StackedRNNCell.stack_param_attr(param_attr, num_layers)
-        bias_attrs = StackedRNNCell.stack_param_attr(bias_attr, num_layers)
-
-        self.cells = []
-        for i in range(num_layers):
-            if forget_bias is True:
-                bias_attrs[
-                    i].initializer = fluid.initializer.NumpyArrayInitializer(
-                        np.concatenate(
-                            np.zeros(2 * hidden_size),
-                            np.ones(hidden_size), np.zeros(hidden_size))
-                        .astype(dtype))
-                forget_bias = 0.0
-            self.cells.append(
-                self.add_sublayer(
-                    "lstm_%d" % i,
-                    BasicLSTMCell(
-                        input_size=input_size if i == 0 else hidden_size,
-                        hidden_size=hidden_size,
-                        gate_activation=gate_activation,
-                        activation=activation,
-                        forget_bias=forget_bias,
-                        param_attr=param_attrs[i],
-                        bias_attr=bias_attrs[i],
-                        dtype=dtype)))
-
-    def forward(self, step_input, states):
-        new_states = []
-        for i, cell in enumerate(self.cells):
-            out, new_state = cell(step_input, states[i])
-            step_input = layers.dropout(
-                out,
-                self.dropout[i],
-                dropout_implementation='upscale_in_train') if self.dropout[
-                    i] > 0 else out
-            new_states.append(new_state)
-        return step_input, new_states
-
-    @property
-    def state_shape(self):
-        return [cell.state_shape for cell in self.cells]
-
-
-class LSTM(Layer):
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 gate_activation=None,
-                 activation=None,
-                 forget_bias=1.0,
-                 num_layers=1,
-                 dropout=0.0,
-                 is_reverse=False,
-                 time_major=False,
-                 param_attr=None,
-                 bias_attr=None,
-                 dtype='float32'):
-        super(LSTM, self).__init__()
-        lstm_cell = StackedLSTMCell(input_size, hidden_size, gate_activation,
-                                    activation, forget_bias, num_layers,
-                                    dropout, param_attr, bias_attr, dtype)
-        self.lstm = RNN(lstm_cell, is_reverse, time_major)
-
-    def forward(self, inputs, initial_states=None, sequence_length=None):
-        return self.lstm(inputs, initial_states, sequence_length)
-
-
-class BidirectionalRNN(Layer):
-    def __init__(self,
-                 cell_fw,
-                 cell_bw,
-                 merge_mode='concat',
-                 time_major=False,
-                 cell_cls=None,
-                 **kwargs):
-        super(BidirectionalRNN, self).__init__()
-        self.rnn_fw = RNN(cell_fw, is_reverse=False, time_major=time_major)
-        self.rnn_bw = RNN(cell_bw, is_reverse=True, time_major=time_major)
-        if merge_mode == 'concat':
-            self.merge_func = lambda x, y: layers.concat([x, y], -1)
-        elif merge_mode == 'sum':
-            self.merge_func = lambda x, y: layers.elementwise_add(x, y)
-        elif merge_mode == 'ave':
-            self.merge_func = lambda x, y: layers.scale(
-                layers.elementwise_add(x, y), 0.5)
-        elif merge_mode == 'mul':
-            self.merge_func = lambda x, y: layers.elementwise_mul(x, y)
-        elif merge_mode == 'zip':
-            self.merge_func = lambda x, y: (x, y)
-        elif merge_mode is None:
-            self.merge_func = None
-        else:
-            raise ValueError('Unsupported value for `merge_mode`: %s' %
-                             merge_mode)
-
-    def forward(self, inputs, initial_states=None, sequence_length=None):
-        if isinstance(initial_states, (list, tuple)):
-            assert len(
-                initial_states
-            ) == 2, "length of initial_states should be 2 when it is a list/tuple"
-        else:
-            initial_states = [initial_states, initial_states]
-        outputs_fw, states_fw = self.rnn_fw(inputs, initial_states[0],
-                                            sequence_length)
-        outputs_bw, states_bw = self.rnn_bw(inputs, initial_states[1],
-                                            sequence_length)
-        outputs = map_structure(
-            self.merge_func, outputs_fw,
-            outputs_bw) if self.merge_func else (outputs_fw, outputs_bw)
-        return outputs, (states_fw, states_bw)
-
-    @staticmethod
-    def bidirect_param_attr(param_attr):
-        if isinstance(param_attr, (list, tuple)):
-            assert len(
-                param_attr
-            ) == 2, "length of param_attr should be 2 when it is a list/tuple"
-            param_attrs = param_attr
-        else:
-            param_attrs = []
-            attr = fluid.ParamAttr._to_attr(param_attr)
-            attr_fw = copy.deepcopy(attr)
-            if attr.name:
-                attr_fw.name = attr_fw.name + "_fw"
-            param_attrs.append(attr_fw)
-            attr_bw = copy.deepcopy(attr)
-            if attr.name:
-                attr_bw.name = attr_bw.name + "_bw"
-            param_attrs.append(attr_bw)
-        return param_attrs
-
-
-class BidirectionalLSTM(Layer):
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 gate_activation=None,
-                 activation=None,
-                 forget_bias=1.0,
-                 num_layers=1,
-                 dropout=0.0,
-                 merge_mode='concat',
-                 merge_each_layer=False,
-                 time_major=False,
-                 param_attr=None,
-                 bias_attr=None,
-                 dtype='float32'):
-        super(BidirectionalLSTM, self).__init__()
-        self.num_layers = num_layers
-        self.merge_mode = merge_mode
-        self.merge_each_layer = merge_each_layer
-        param_attrs = BidirectionalRNN.bidirect_param_attr(param_attr)
-        bias_attrs = BidirectionalRNN.bidirect_param_attr(bias_attr)
-        if not merge_each_layer:
-            cell_fw = StackedLSTMCell(input_size, hidden_size, gate_activation,
-                                      activation, forget_bias, num_layers,
-                                      dropout, param_attrs[0], bias_attrs[0],
-                                      dtype)
-            cell_bw = StackedLSTMCell(input_size, hidden_size, gate_activation,
-                                      activation, forget_bias, num_layers,
-                                      dropout, param_attrs[1], bias_attrs[1],
-                                      dtype)
-            self.lstm = BidirectionalRNN(
-                cell_fw, cell_bw, merge_mode=merge_mode, time_major=time_major)
-        else:
-            fw_param_attrs = StackedRNNCell.stack_param_attr(param_attrs[0],
-                                                             num_layers)
-            bw_param_attrs = StackedRNNCell.stack_param_attr(param_attrs[1],
-                                                             num_layers)
-            fw_bias_attrs = StackedRNNCell.stack_param_attr(bias_attrs[0],
-                                                            num_layers)
-            bw_bias_attrs = StackedRNNCell.stack_param_attr(bias_attrs[1],
-                                                            num_layers)
-
-            # maybe design cell including both forward and backward later
-            self.lstm = []
-            for i in range(num_layers):
-                cell_fw = StackedLSTMCell(
-                    input_size if i == 0 else (hidden_size * 2
-                                               if merge_mode == 'concat' else
-                                               hidden_size), hidden_size,
-                    gate_activation, activation, forget_bias, 1, dropout,
-                    fw_param_attrs[i], fw_bias_attrs[i], dtype)
-                cell_bw = StackedLSTMCell(
-                    input_size if i == 0 else (hidden_size * 2
-                                               if merge_mode == 'concat' else
-                                               hidden_size), hidden_size,
-                    gate_activation, activation, forget_bias, 1, dropout,
-                    bw_param_attrs[i], bw_bias_attrs[i], dtype)
-                self.lstm.append(
-                    self.add_sublayer(
-                        "lstm_%d" % i,
-                        BidirectionalRNN(
-                            cell_fw,
-                            cell_bw,
-                            merge_mode=merge_mode,
-                            time_major=time_major)))
-
-    def forward(self, inputs, initial_states=None, sequence_length=None):
-        if not self.merge_each_layer:
-            return self.lstm(inputs, initial_states, sequence_length)
-        else:
-            if isinstance(initial_states, (list, tuple)):
-                assert len(initial_states) == self.num_layers, (
-                    "length of initial_states should be %d when it is a list/tuple"
-                    % self.num_layers)
-            else:
-                initial_states = [initial_states] * self.num_layers
-            stacked_states = []
-            for i in range(self.num_layers):
-                outputs, states = self.lstm[i](inputs, initial_states[i],
-                                               sequence_length)
-                inputs = outputs
-                stacked_states.append(states)
-            return outputs, stacked_states
-
-
-class StackedGRUCell(RNNCell):
-    """
-    """
-
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 gate_activation=None,
-                 activation=None,
-                 num_layers=1,
-                 dropout=0.0,
-                 param_attr=None,
-                 bias_attr=None,
-                 dtype="float32"):
-        super(StackedGRUCell, self).__init__()
-        self.dropout = utils.convert_to_list(dropout, num_layers, "dropout",
-                                             float)
-        param_attrs = StackedRNNCell.stack_param_attr(param_attr, num_layers)
-        bias_attrs = StackedRNNCell.stack_param_attr(bias_attr, num_layers)
-
-        self.cells = []
-        for i in range(num_layers):
-            self.cells.append(
-                self.add_sublayer(
-                    "gru_%d" % i,
-                    BasicGRUCell(
-                        input_size=input_size if i == 0 else hidden_size,
-                        hidden_size=hidden_size,
-                        gate_activation=gate_activation,
-                        activation=activation,
-                        param_attr=param_attrs[i],
-                        bias_attr=bias_attrs[i],
-                        dtype=dtype)))
-
-    def forward(self, step_input, states):
-        new_states = []
-        for i, cell in enumerate(self.cells):
-            out, new_state = cell(step_input, states[i])
-            step_input = layers.dropout(
-                out,
-                self.dropout[i],
-                dropout_implementation='upscale_in_train') if self.dropout[
-                    i] > 0 else out
-            new_states.append(new_state)
-        return step_input, new_states
-
-    @property
-    def state_shape(self):
-        return [cell.state_shape for cell in self.cells]
-
-
-class GRU(Layer):
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 gate_activation=None,
-                 activation=None,
-                 num_layers=1,
-                 dropout=0.0,
-                 is_reverse=False,
-                 time_major=False,
-                 param_attr=None,
-                 bias_attr=None,
-                 dtype='float32'):
-        super(GRU, self).__init__()
-        gru_cell = StackedGRUCell(input_size, hidden_size, gate_activation,
-                                  activation, num_layers, dropout, param_attr,
-                                  bias_attr, dtype)
-        self.gru = RNN(gru_cell, is_reverse, time_major)
-
-    def forward(self, inputs, initial_states=None, sequence_length=None):
-        return self.gru(inputs, initial_states, sequence_length)
-
-
-class BidirectionalGRU(Layer):
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 gate_activation=None,
-                 activation=None,
-                 forget_bias=1.0,
-                 num_layers=1,
-                 dropout=0.0,
-                 merge_mode='concat',
-                 merge_each_layer=False,
-                 time_major=False,
-                 param_attr=None,
-                 bias_attr=None,
-                 dtype='float32'):
-        super(BidirectionalGRU, self).__init__()
-        self.num_layers = num_layers
-        self.merge_mode = merge_mode
-        self.merge_each_layer = merge_each_layer
-        param_attrs = BidirectionalRNN.bidirect_param_attr(param_attr)
-        bias_attrs = BidirectionalRNN.bidirect_param_attr(bias_attr)
-        if not merge_each_layer:
-            cell_fw = StackedGRUCell(input_size, hidden_size, gate_activation,
-                                     activation, num_layers, dropout,
-                                     param_attrs[0], bias_attrs[0], dtype)
-            cell_bw = StackedGRUCell(input_size, hidden_size, gate_activation,
-                                     activation, num_layers, dropout,
-                                     param_attrs[1], bias_attrs[1], dtype)
-            self.gru = BidirectionalRNN(
-                cell_fw, cell_bw, merge_mode=merge_mode, time_major=time_major)
-        else:
-            fw_param_attrs = StackedRNNCell.stack_param_attr(param_attrs[0],
-                                                             num_layers)
-            bw_param_attrs = StackedRNNCell.stack_param_attr(param_attrs[1],
-                                                             num_layers)
-            fw_bias_attrs = StackedRNNCell.stack_param_attr(bias_attrs[0],
-                                                            num_layers)
-            bw_bias_attrs = StackedRNNCell.stack_param_attr(bias_attrs[1],
-                                                            num_layers)
-
-            # maybe design cell including both forward and backward later
-            self.gru = []
-            for i in range(num_layers):
-                cell_fw = StackedGRUCell(input_size if i == 0 else (
-                    hidden_size * 2 if merge_mode == 'concat' else
-                    hidden_size), hidden_size, gate_activation, activation, 1,
-                                         dropout, fw_param_attrs[i],
-                                         fw_bias_attrs[i], dtype)
-                cell_bw = StackedGRUCell(input_size if i == 0 else (
-                    hidden_size * 2 if merge_mode == 'concat' else
-                    hidden_size), hidden_size, gate_activation, activation, 1,
-                                         dropout, bw_param_attrs[i],
-                                         bw_bias_attrs[i], dtype)
-                self.gru.append(
-                    self.add_sublayer(
-                        "gru_%d" % i,
-                        BidirectionalRNN(
-                            cell_fw,
-                            cell_bw,
-                            merge_mode=merge_mode,
-                            time_major=time_major)))
-
-    def forward(self, inputs, initial_states=None, sequence_length=None):
-        if not self.merge_each_layer:
-            return self.gru(inputs, initial_states, sequence_length)
-        else:
-            if isinstance(initial_states, (list, tuple)):
-                assert len(initial_states) == self.num_layers, (
-                    "length of initial_states should be %d when it is a list/tuple"
-                    % self.num_layers)
-            else:
-                initial_states = [initial_states] * self.num_layers
-            stacked_states = []
-            for i in range(self.num_layers):
-                outputs, states = self.gru[i](inputs, initial_states[i],
-                                              sequence_length)
-                inputs = outputs
-                stacked_states.append(states)
-            return outputs, stacked_states
