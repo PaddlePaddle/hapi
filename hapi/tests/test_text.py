@@ -711,5 +711,39 @@ class TestBiGRU(ModuleApiTest):
         self.check_output()
 
 
+class TestCNNEncoder(ModuleApiTest):
+    def setUp(self):
+        shape = (2, 32, 8)  # [N, C, H]
+        self.inputs = [np.random.random(shape).astype("float32")]
+        self.outputs = None
+        self.attrs = {"num_channels": 32, "num_filters": 64, "num_layers": 2}
+        self.param_states = {}
+
+    @staticmethod
+    def model_init(self, num_channels, num_filters, num_layers):
+        self.cnn_encoder = CNNEncoder(
+            num_layers=2,
+            num_channels=num_channels,
+            num_filters=num_filters,
+            filter_size=[2, 3],
+            pool_size=[7, 6])
+
+    @staticmethod
+    def model_forward(self, inputs):
+        return self.cnn_encoder(inputs)
+
+    def make_inputs(self):
+        inputs = [
+            Input(
+                [None, self.inputs[-1].shape[1], None],
+                "float32",
+                name="input"),
+        ]
+        return inputs
+
+    def test_check_output_merge0(self):
+        self.check_output()
+
+
 if __name__ == '__main__':
     unittest.main()
