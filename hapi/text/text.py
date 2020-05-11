@@ -2367,10 +2367,20 @@ class TransformerCell(Layer):
 
             import paddle
             import paddle.fluid as fluid
+            from paddle.fluid.dygraph import Embedding
             from paddle.incubate.hapi.text import TransformerCell
             from paddle.incubate.hapi.text import TransformerBeamSearchDecoder
 
-            embedder = Embedding(size=[1000, 128])
+            class Embedder(fluid.dygraph.Layer):
+                def __init__(self):
+                    self.word_embedder = Embedding(size=[1000, 128])
+                    self.pos_embedder = Embedding(size=[500, 128])
+
+                def forward(self, inputs):
+                    word, position = inputs
+                    return self.word_embedder(word) + self.pos_embedder(position)
+
+            embedder = Embedder()
             output_layer = Linear(128, 1000)
             decoder = TransformerDecoder(2, 2, 64, 64, 128, 512)
             transformer_cell = TransformerCell(decoder, embedder, output_layer)
@@ -2392,7 +2402,7 @@ class TransformerCell(Layer):
             enc_output = TransformerBeamSearchDecoder.tile_beam_merge_with_batch(
                 enc_output, beam_size=4)
             trg_src_attn_bias = TransformerBeamSearchDecoder.tile_beam_merge_with_batch(
-                trg_src_attn_bias, self.beam_size)
+                trg_src_attn_bias, beam_size=4)
             static_caches = decoder.prepare_static_cache(enc_output)
             outputs = dynamic_decoder(
                 inits=caches,
@@ -2517,10 +2527,20 @@ class TransformerBeamSearchDecoder(layers.BeamSearchDecoder):
 
             import paddle
             import paddle.fluid as fluid
+            from paddle.fluid.dygraph import Embedding
             from paddle.incubate.hapi.text import TransformerCell
             from paddle.incubate.hapi.text import TransformerBeamSearchDecoder
 
-            embedder = Embedding(size=[1000, 128])
+            class Embedder(fluid.dygraph.Layer):
+                def __init__(self):
+                    self.word_embedder = Embedding(size=[1000, 128])
+                    self.pos_embedder = Embedding(size=[500, 128])
+
+                def forward(self, inputs):
+                    word, position = inputs
+                    return self.word_embedder(word) + self.pos_embedder(position)
+
+            embedder = Embedder()
             output_layer = Linear(128, 1000)
             decoder = TransformerDecoder(2, 2, 64, 64, 128, 512)
             transformer_cell = TransformerCell(decoder, embedder, output_layer)
@@ -2542,7 +2562,7 @@ class TransformerBeamSearchDecoder(layers.BeamSearchDecoder):
             enc_output = TransformerBeamSearchDecoder.tile_beam_merge_with_batch(
                 enc_output, beam_size=4)
             trg_src_attn_bias = TransformerBeamSearchDecoder.tile_beam_merge_with_batch(
-                trg_src_attn_bias, self.beam_size)
+                trg_src_attn_bias, beam_size=4)
             static_caches = decoder.prepare_static_cache(enc_output)
             outputs = dynamic_decoder(
                 inits=caches,
@@ -2944,53 +2964,33 @@ class TransformerEncoder(Layer):
     """
     TransformerEncoder is a stack of N encoder layers.
 
-    Applies a stacked multi-layer gated recurrent unit (GRU) RNN to an input
-    sequence.
-
     Parameters:
         n_layer (int): The number of encoder layers to be stacked.
-        n_head (int): The number of heads in the multi-head attention(MHA).
-        d_key (int): The number of heads in the multi-head attention. Mostly .
-        d_value (int): The number of heads in the multiheadattention.
+        n_head (int): The number of heads in multi-head attention(MHA).
+        d_key (int): The feature size to transformer queries and keys as in
+            multi-head attention. Mostly it equals to `d_model // n_head`.
+        d_value (int): The feature size to transformer values as in multi-head
+            attention. Mostly it equals to `d_model // n_head`.
         d_model (int): The expected feature size in the input and output.
         d_inner_hid (int): The hidden layer size in the feedforward network(FFN).
         prepostprocess_dropout (float, optional): The dropout probability used
             in pre-process and post-precess of MHA and FFN sub-layer. Default 0.1
         attention_dropout (float, optional): The dropout probability used
             in MHA to drop some attention target. Default 0.1
-        relu_dropout (float, optional): The dropout probability used in FFN
-            in MHA to drop some attention target. Default 0.1
+        relu_dropout (float, optional): The dropout probability used after FFN
+            activition. Default 0.1
         preprocess_cmd (str, optional): The process applied before each MHA and
-            FFN sub-layer, and it also would be applied. It should be a string
-            that includes `d`, `a`, `n` as , where `d` for dropout, `a` for add
-            residual connection, `n` for layer normalization.
-            network. Default `n`.
+            FFN sub-layer, and it also would be applied on output of the last
+            stacked layer. It should be a string composed of `d`, `a`, `n`,
+            where `d` for dropout, `a` for add residual connection, `n` for
+            layer normalization. Default `n`.
+        postprocess_cmd (str, optional): The process applied after each MHA and
+            FFN sub-layer. Same as `preprocess_cmd`. It should be a string
+            composed of `d`, `a`, `n`, where `d` for dropout, `a` for add
+            residual connection, `n` for layer normalization. Default `da`.
         ffn_fc1_act (str, optional): The activation function in the feedforward
             network. Default relu.
          
-        dropout(float|list|tuple, optional): The dropout probability after each
-            GRU. It also can be a list or tuple, including dropout probabilities
-            for the corresponding GRU. Default 0.0
-        is_reverse (bool, optional): Indicate whether to calculate in the reverse
-            order of input sequences. Default: `False`.
-        time_major (bool, optional): Indicate the data layout of Tensor included
-            in `input` and `output` tensors. If `False`, the data layout would
-            be batch major with shape `[batch_size, sequence_length, ...]`.  If
-            `True`, the data layout would be time major with shape
-            `[sequence_length, batch_size, ...]`. Default: `False`.
-        param_attr (list|tuple|ParamAttr): A list, tuple or something can be
-            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
-            a list or tuple, it's length must equal to `num_layers`. Otherwise,
-            construct a list by `StackedRNNCell.stack_param_attr(param_attr, num_layers)`.
-            Default None.
-        bias_attr (list|tuple|ParamAttr): A list, tuple or something can be
-            converted to a ParamAttr instance by `ParamAttr._to_attr`. If it is
-            a list or tuple, it's length must equal to `num_layers`. Otherwise,
-            construct a list by `StackedRNNCell.stack_param_attr(bias_attr, num_layers)`.
-            Default None.
-        dtype(string, optional): The data type used in this cell. It can be
-            float32 or float64. Default float32.
-
     Examples:
 
         .. code-block:: python
@@ -2999,9 +2999,12 @@ class TransformerEncoder(Layer):
             import paddle.fluid as fluid
             from paddle.incubate.hapi.text import TransformerEncoder
 
-            inputs = paddle.rand((2, 4, 32))
-            gru = TransformerEncoder(n_layers=2, input_size=32, hidden_size=64,)
-            outputs, _ = gru(inputs)  # [2, 4, 32]
+            # encoder input: [batch_size, src_len, d_model]
+            enc_input = paddle.rand((2, 4, 32))
+            # self attention bias: [batch_size, n_head, src_len, src_len]
+            attn_bias = paddle.rand((2, 2, 4, 4))
+            encoder = TransformerEncoder(2, 2, 64, 64, 128, 512)
+            enc_output = encoder(inputs, attn_bias)  # [2, 4, 32]
     """
 
     def __init__(self,
@@ -3040,7 +3043,26 @@ class TransformerEncoder(Layer):
         self.processer = PrePostProcessLayer(preprocess_cmd, d_model,
                                              prepostprocess_dropout)
 
-    def forward(self, enc_input, attn_bias):
+    def forward(self, enc_input, attn_bias=None):
+        """
+        Applies a stack of N Transformer encoder layers on input sequences.
+
+        Parameters:
+            enc_input (Variable): The input of Transformer encoder. It is a tensor
+                with shape `[batch_size, sequence_length, d_model]`. The data
+                type should be float32 or float64.
+            attn_bias(Variable, optional): A tensor used in encoder self attention
+                to mask out attention on unwanted positions, usually the paddings. It
+                is a tensor with shape `[batch_size, n_head, sequence_length, sequence_length]`,
+                where the unwanted positions have `-INF` values and the others
+                have 0 values. It can be None for inference. The data type should
+                be float32 or float64. It can be None when nothing wanted to be
+                masked out. Default None
+
+        Returns:
+            Variable: The output of Transformer encoder. It is a tensor that has \
+                the same shape and data type as `enc_input`.
+        """
         for encoder_layer in self.encoder_layers:
             enc_output = encoder_layer(enc_input, attn_bias)
             enc_input = enc_output
