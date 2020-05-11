@@ -214,8 +214,7 @@ class BasicLSTMCell(RNNCell):
         h_{t} & = o_{t} act_c (c_{t})
 
     Please refer to `An Empirical Exploration of Recurrent Network Architectures
-    <http://proceedings.mlr.press/v37/jozefowicz15.pdf>`_
-    for more details.
+    <http://proceedings.mlr.press/v37/jozefowicz15.pdf>`_ for more details.
 
     Parameters:
         input_size (int): The input size in the LSTM cell.
@@ -547,8 +546,7 @@ class BasicGRUCell(RNNCell):
         h_t & = u_t \odot h_{t-1} + (1-u_t) \odot \\tilde{h_t}
 
     Please refer to `An Empirical Exploration of Recurrent Network Architectures
-    <http://proceedings.mlr.press/v37/jozefowicz15.pdf>`_
-    for more details.
+    <http://proceedings.mlr.press/v37/jozefowicz15.pdf>`_ for more details.
 
     Parameters:
         input_size (int): The input size for the first GRU cell.
@@ -2719,23 +2717,26 @@ class TransformerCell(Layer):
                 attention to mask out attention on unwanted target positions. It
                 is a tensor with shape `[batch_size, n_head, target_length, target_length]`,
                 where the unwanted positions have `-INF` values and the others
-                have 0 values. It can be None for inference. The data type should
-                be float32 or float64.
-            trg_src_attn_bias(Variable, optional): A tensor used in decoder encoder
+                have 0 values. It can be None when nothing wanted or needed to
+                be masked out. It can be None for inference. The data type should
+                be float32 or float64. Default None
+            trg_src_attn_bias(Variable, optional): A tensor used in decoder-encoder
                 cross attention to mask out unwanted attention on source (encoder output).
                 It is a tensor with shape `[batch_size, n_head, target_length, source_length]`,
                 where the unwanted positions have `-INF` values and the others
-                have 0 values. The data type should be float32 or float64.
-            static_caches(list): It stores the multi-head attention intermediate
-                results of encoder output. It is a list of dict where the length
-                of list is decoder layer number, and each dict has `static_k` and
-                `static_v` as keys and values are stored results. Default empty list
+                have 0 values. It can be None when nothing wanted or needed to
+                be masked out. The data type should be float32 or float64. Default None
+            static_caches(list): It stores projected results of encoder output
+                to be used as keys and values in decoder-encoder cross attention
+                It is a list of dict where the length of list is decoder layer
+                number, and each dict has `static_k` and `static_v` as keys and
+                values are stored results. Default empty list
 
         Returns:
             tuple: A tuple( :code:`(outputs, new_states)` ), where `outputs` \
                 is a float32 or float64 3D tensor representing logits shaped \
                 `[batch_size, sequence_length, vocab_size]`. `new_states has \
-                the same structure and date type with `states` while the length \
+                the same structure and data type with `states` while the length \
                 is one larger since the intermediate results of current step are \
                 concatenated into it.
         """
@@ -2830,7 +2831,7 @@ class TransformerBeamSearchDecoder(layers.BeamSearchDecoder):
                 max_step_num,
                 is_test=True)
             
-            enc_output = paddle.rand((2, 4, 64))
+            enc_output = paddle.rand((2, 4, 128))
             # cross attention bias: [batch_size, n_head, trg_len, src_len]
             trg_src_attn_bias = paddle.rand((2, 2, 1, 4))
             # inputs for beam search on Transformer
@@ -3015,7 +3016,37 @@ class PrePostProcessLayer(Layer):
 
 class MultiHeadAttention(Layer):
     """
-    Multi-Head Attention
+    MultiHead Attention mapps queries and a set of key-value pairs to outputs
+    by jointly attending to information from different representation subspaces,
+    as what multi-head indicates it performs multiple attention in parallel.
+
+    Please refer to `Attention Is All You Need <https://arxiv.org/pdf/1706.03762.pdf>`_
+    for more details.
+
+    Parameters:
+        d_key (int): The feature size to transformer queries and keys as in
+            multi-head attention. Mostly it equals to `d_model // n_head`.
+        d_value (int): The feature size to transformer values as in multi-head
+            attention. Mostly it equals to `d_model // n_head`.
+        d_model (int): The expected feature size in the input and output.
+        n_head (int): The number of heads in multi-head attention(MHA).
+        dropout_rate (float, optional): The dropout probability used in MHA to
+            drop some attention target. Default 0.1
+         
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import MultiHeadAttention
+
+            # encoder input: [batch_size, sequence_length, d_model]
+            query = paddle.rand((2, 4, 128))
+            # self attention bias: [batch_size, n_head, src_len, src_len]
+            attn_bias = paddle.rand((2, 2, 4, 4))
+            multi_head_attn = MultiHeadAttention(64, 64, 2, 128)
+            output = multi_head_attn(query, attn_bias=attn_bias)  # [2, 4, 128]
     """
 
     def __init__(self,
@@ -3062,6 +3093,37 @@ class MultiHeadAttention(Layer):
                 bias_attr=False)
 
     def _prepare_qkv(self, queries, keys, values, cache=None):
+        """
+        Prapares linear projected queries, keys and values for usage of subsequnt
+        multiple attention in parallel. If `cache` is not None, using cached
+        results to reduce redundant calculations.
+
+        Parameters:
+            queries (Variable): The queries for multi-head attention. It is a
+                tensor with shape `[batch_size, sequence_length, d_model]`. The
+                data type should be float32 or float64.
+            keys (Variable, optional): The keys for multi-head attention. It is
+                a tensor with shape `[batch_size, sequence_length, d_model]`. The
+                data type should be float32 or float64.
+            values (Variable, optional): The values for multi-head attention. It
+                is a tensor with shape `[batch_size, sequence_length, d_model]`.
+                The data type should be float32 or float64.
+            cache(dict, optional): It is a dict with `k` and `v` as keys, and
+                values cache the multi-head attention intermediate results of
+                history decoding steps for decoder self attention; Or a dict
+                with `static_k` and `statkc_v` as keys, and values stores intermediate
+                results of encoder output for decoder-encoder cross attention.
+                If it is for decoder self attention, values for `k` and `v` would
+                be updated by new tensors concatanating raw tensors with intermediate
+                results of current step. It is only used for inference and should
+                be None for training. Default None
+
+        Returns:
+            tuple: A tuple including linear projected keys and values. These two \
+                tensors have shapes `[batch_size, n_head, sequence_length, d_key]` \
+                and `[batch_size, n_head, sequence_length, d_value]` separately, \
+                and their data types are same as inputs.
+        """
         if keys is None:  # self-attention
             keys, values = queries, queries
             static_kv = False
@@ -3097,7 +3159,47 @@ class MultiHeadAttention(Layer):
 
         return q, k, v
 
-    def forward(self, queries, keys, values, attn_bias, cache=None):
+    def forward(self,
+                queries,
+                keys=None,
+                values=None,
+                attn_bias=None,
+                cache=None):
+        """
+        Applies multi-head attention to map queries and a set of key-value pairs
+        to outputs.
+
+        Parameters:
+            queries (Variable): The queries for multi-head attention. It is a
+                tensor with shape `[batch_size, sequence_length, d_model]`. The
+                data type should be float32 or float64.
+            keys (Variable, optional): The keys for multi-head attention. It is
+                a tensor with shape `[batch_size, sequence_length, d_model]`. The
+                data type should be float32 or float64.
+            values (Variable, optional): The values for multi-head attention. It
+                is a tensor with shape `[batch_size, sequence_length, d_model]`.
+                The data type should be float32 or float64.
+            attn_bias (Variable, optional): A tensor used in multi-head attention
+                to mask out attention on unwanted positions, usually the
+                paddings or the subsequent positions. It is a tensor with shape
+                `[batch_size, n_head, sequence_length, sequence_length]`,
+                where the unwanted positions have `-INF` values and the others
+                have 0 values. The data type should be float32 or float64. It can
+                be None when nothing wanted or needed to be masked out. Default None
+            cache(dict, optional): It is a dict with `k` and `v` as keys, and
+                values cache the multi-head attention intermediate results of
+                history decoding steps for decoder self attention; Or a dict
+                with `static_k` and `statkc_v` as keys, and values stores intermediate
+                results of encoder output for decoder-encoder cross attention.
+                If it is for decoder self attention, values for `k` and `v` would
+                be updated by new tensors concatanating raw tensors with intermediate
+                results of current step. It is only used for inference and should
+                be None for training. Default None
+
+        Returns:
+            Variable: The output of multi-head attention. It is a tensor \
+                that has the same shape and data type as `queries`.
+        """
         # compute q ,k ,v
         q, k, v = self._prepare_qkv(queries, keys, values, cache)
 
@@ -3122,6 +3224,25 @@ class MultiHeadAttention(Layer):
         return out
 
     def cal_kv(self, keys, values):
+        """
+        Applies linear projection on input keys and values, then splits heads
+        (reshape and transpose) to get keys and values from different representation
+        subspaces for usage of subsequnt multiple attention in parallel.
+
+        Parameters:
+            keys (Variable, optional): The keys for multi-head attention. It is
+                a tensor with shape `[batch_size, sequence_length, d_model]`. The
+                data type should be float32 or float64.
+            values (Variable, optional): The values for multi-head attention. It
+                is a tensor with shape `[batch_size, sequence_length, d_model]`.
+                The data type should be float32 or float64.
+
+        Returns:
+            tuple: A tuple including linear projected keys and values. These two \
+                tensors have shapes `[batch_size, n_head, sequence_length, d_key]` \
+                and `[batch_size, n_head, sequence_length, d_value]` separately, \
+                and their data types are same as inputs.
+        """
         k = self.k_fc(keys)
         v = self.v_fc(values)
         k = layers.reshape(x=k, shape=[0, 0, self.n_head, self.d_key])
@@ -3133,7 +3254,17 @@ class MultiHeadAttention(Layer):
 
 class FFN(Layer):
     """
-    Feed-Forward Network
+    A fully connected feed-forward network applied to each position separately
+    and identically. This consists of two linear transformations with a activation
+    and dropout in between.
+
+    Parameters:
+        d_inner_hid (int): The hidden size in the feedforward network(FFN).
+        d_model (int): The expected feature size in the input and output.
+        dropout_rate (float, optional): The dropout probability used after
+            activition. Default 0.1
+        ffn_fc1_act (str, optional): The activation function in the feedforward
+            network. Default relu.
     """
 
     def __init__(self,
@@ -3156,6 +3287,19 @@ class FFN(Layer):
             self.fc2 = Linear(input_dim=d_inner_hid, output_dim=d_model)
 
     def forward(self, x):
+        """
+        Applies a fully connected feed-forward network on each position  of the
+        input sequences separately and identically.
+
+        Parameters:
+            x (Variable): The input of feed-forward network. It is a tensor
+                with shape `[batch_size, sequence_length, d_model]`. The data
+                type should be float32 or float64.
+
+        Returns:
+            Variable: The output of feed-forward network. It is a tensor that has \
+                the same shape and data type as `enc_input`.
+        """
         hidden = self.fc1(x)
         if self.dropout_rate:
             hidden = layers.dropout(
@@ -3166,7 +3310,50 @@ class FFN(Layer):
 
 class TransformerEncoderLayer(Layer):
     """
-    EncoderLayer
+    TransformerEncoderLayer is composed of two sub-layers which are self (multi-head)
+    attention and feedforward network. Before and after each sub-layer, pre-process
+    and post-precess would be applied on the input and output.
+
+    Parameters:
+        n_head (int): The number of heads in multi-head attention(MHA).
+        d_key (int): The feature size to transformer queries and keys as in
+            multi-head attention. Mostly it equals to `d_model // n_head`.
+        d_value (int): The feature size to transformer values as in multi-head
+            attention. Mostly it equals to `d_model // n_head`.
+        d_model (int): The expected feature size in the input and output.
+        d_inner_hid (int): The hidden layer size in the feedforward network(FFN).
+        prepostprocess_dropout (float, optional): The dropout probability used
+            in pre-process and post-precess of MHA and FFN sub-layer. Default 0.1
+        attention_dropout (float, optional): The dropout probability used
+            in MHA to drop some attention target. Default 0.1
+        relu_dropout (float, optional): The dropout probability used after FFN
+            activition. Default 0.1
+        preprocess_cmd (str, optional): The process applied before each MHA and
+            FFN sub-layer, and it also would be applied on output of the last
+            stacked layer. It should be a string composed of `d`, `a`, `n`,
+            where `d` for dropout, `a` for add residual connection, `n` for
+            layer normalization. Default `n`.
+        postprocess_cmd (str, optional): The process applied after each MHA and
+            FFN sub-layer. Same as `preprocess_cmd`. It should be a string
+            composed of `d`, `a`, `n`, where `d` for dropout, `a` for add
+            residual connection, `n` for layer normalization. Default `da`.
+        ffn_fc1_act (str, optional): The activation function in the feedforward
+            network. Default relu.
+         
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import TransformerEncoderLayer
+
+            # encoder input: [batch_size, src_len, d_model]
+            enc_input = paddle.rand((2, 4, 128))
+            # self attention bias: [batch_size, n_head, src_len, src_len]
+            attn_bias = paddle.rand((2, 2, 4, 4))
+            encoder_layer = TransformerEncoderLayer(2, 2, 64, 64, 128, 512)
+            enc_output = encoder_layer(inputs, attn_bias)  # [2, 4, 128]
     """
 
     def __init__(self,
@@ -3175,9 +3362,9 @@ class TransformerEncoderLayer(Layer):
                  d_value,
                  d_model,
                  d_inner_hid,
-                 prepostprocess_dropout,
-                 attention_dropout,
-                 relu_dropout,
+                 prepostprocess_dropout=0.1,
+                 attention_dropout=0.1,
+                 relu_dropout=0.1,
                  preprocess_cmd="n",
                  postprocess_cmd="da",
                  ffn_fc1_act="relu",
@@ -3226,7 +3413,25 @@ class TransformerEncoderLayer(Layer):
                                                   prepostprocess_dropout,
                                                   reused_post_ffn_layernorm)
 
-    def forward(self, enc_input, attn_bias):
+    def forward(self, enc_input, attn_bias=None):
+        """
+        Applies a Transformer encoder layer on the input.
+
+        Parameters:
+            enc_input (Variable): The input of Transformer encoder layer. It is
+                a tensor with shape `[batch_size, sequence_length, d_model]`.
+                The data type should be float32 or float64.
+            attn_bias(Variable, optional): A tensor used in encoder self attention
+                to mask out attention on unwanted positions, usually the paddings. It
+                is a tensor with shape `[batch_size, n_head, sequence_length, sequence_length]`,
+                where the unwanted positions have `-INF` values and the others
+                have 0 values. The data type should be float32 or float64. It can
+                be None when nothing wanted or needed to be masked out. Default None
+
+        Returns:
+            Variable: The output of Transformer encoder layer. It is a tensor that \
+                has the same shape and data type as `enc_input`.
+        """
         attn_output = self.self_attn(
             self.preprocesser1(enc_input), None, None, attn_bias)
         attn_output = self.postprocesser1(attn_output, enc_input)
@@ -3276,11 +3481,11 @@ class TransformerEncoder(Layer):
             from paddle.incubate.hapi.text import TransformerEncoder
 
             # encoder input: [batch_size, src_len, d_model]
-            enc_input = paddle.rand((2, 4, 32))
+            enc_input = paddle.rand((2, 4, 128))
             # self attention bias: [batch_size, n_head, src_len, src_len]
             attn_bias = paddle.rand((2, 2, 4, 4))
             encoder = TransformerEncoder(2, 2, 64, 64, 128, 512)
-            enc_output = encoder(inputs, attn_bias)  # [2, 4, 32]
+            enc_output = encoder(inputs, attn_bias)  # [2, 4, 128]
     """
 
     def __init__(self,
@@ -3331,9 +3536,8 @@ class TransformerEncoder(Layer):
                 to mask out attention on unwanted positions, usually the paddings. It
                 is a tensor with shape `[batch_size, n_head, sequence_length, sequence_length]`,
                 where the unwanted positions have `-INF` values and the others
-                have 0 values. It can be None for inference. The data type should
-                be float32 or float64. It can be None when nothing wanted to be
-                masked out. Default None
+                have 0 values. The data type should be float32 or float64. It can
+                be None when nothing wanted or needed to be masked out. Default None
 
         Returns:
             Variable: The output of Transformer encoder. It is a tensor that has \
@@ -3348,7 +3552,58 @@ class TransformerEncoder(Layer):
 
 class TransformerDecoderLayer(Layer):
     """
-    decoder
+    TransformerDecoderLayer is composed of three sub-layers which are decoder
+    self (multi-head) attention, decoder-encoder cross attention and feedforward
+    network. Before and after each sub-layer, pre-process and post-precess would
+    be applied on the input and output.
+
+    Parameters:
+        n_head (int): The number of heads in multi-head attention(MHA).
+        d_key (int): The feature size to transformer queries and keys as in
+            multi-head attention. Mostly it equals to `d_model // n_head`.
+        d_value (int): The feature size to transformer values as in multi-head
+            attention. Mostly it equals to `d_model // n_head`.
+        d_model (int): The expected feature size in the input and output.
+        d_inner_hid (int): The hidden layer size in the feedforward network(FFN).
+        prepostprocess_dropout (float, optional): The dropout probability used
+            in pre-process and post-precess of MHA and FFN sub-layer. Default 0.1
+        attention_dropout (float, optional): The dropout probability used
+            in MHA to drop some attention target. Default 0.1
+        relu_dropout (float, optional): The dropout probability used after FFN
+            activition. Default 0.1
+        preprocess_cmd (str, optional): The process applied before each MHA and
+            FFN sub-layer, and it also would be applied on output of the last
+            stacked layer. It should be a string composed of `d`, `a`, `n`,
+            where `d` for dropout, `a` for add residual connection, `n` for
+            layer normalization. Default `n`.
+        postprocess_cmd (str, optional): The process applied after each MHA and
+            FFN sub-layer. Same as `preprocess_cmd`. It should be a string
+            composed of `d`, `a`, `n`, where `d` for dropout, `a` for add
+            residual connection, `n` for layer normalization. Default `da`.
+        ffn_fc1_act (str, optional): The activation function in the feedforward
+            network. Default relu.
+         
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import TransformerDecoderLayer
+
+            # decoder input: [batch_size, trg_len, d_model]
+            dec_input = paddle.rand((2, 4, 128))
+            # encoder output: [batch_size, src_len, d_model]
+            enc_output = paddle.rand((2, 6, 128))
+            # self attention bias: [batch_size, n_head, trg_len, trg_len]
+            self_attn_bias = paddle.rand((2, 2, 4, 4))
+            # cross attention bias: [batch_size, n_head, trg_len, src_len]
+            cross_attn_bias = paddle.rand((2, 2, 4, 6))
+            decoder_layer = TransformerDecoderLayer(2, 64, 64, 128, 512)
+            output = decoder_layer(dec_input,
+                                   enc_output,
+                                   self_attn_bias,
+                                   cross_attn_bias)  # [2, 4, 128]
     """
 
     def __init__(self,
@@ -3438,9 +3693,41 @@ class TransformerDecoderLayer(Layer):
     def forward(self,
                 dec_input,
                 enc_output,
-                self_attn_bias,
-                cross_attn_bias,
+                self_attn_bias=None,
+                cross_attn_bias=None,
                 cache=None):
+        """
+        Applies a Transformer decoder layer on the input.
+
+        Parameters:
+            dec_input (Variable): The input of Transformer decoder. It is a tensor
+                with shape `[batch_size, target_length, d_model]`. The data type
+                should be float32 or float64.
+            enc_output (Variable): The output of Transformer encoder. It is a tensor
+                with shape `[batch_size, source_length, d_model]`. The data type
+                should be float32 or float64.
+            self_attn_bias (Variable, optional): A tensor used in decoder self attention
+                to mask out attention on unwanted positions, usually the subsequent positions.
+                It is a tensor with shape `[batch_size, n_head, target_length, target_length]`,
+                where the unwanted positions have `-INF` values and the others
+                have 0 values. The data type should be float32 or float64. It can
+                be None when nothing wanted or needed to be masked out. Default None
+            cross_attn_bias (Variable, optional): A tensor used in decoder-encoder cross
+                attention to mask out attention on unwanted positions, usually the paddings.
+                It is a tensor with shape `[batch_size, n_head, target_length, target_length]`,
+                where the unwanted positions have `-INF` values and the others
+                have 0 values. The data type should be float32 or float64. It can
+                be None when nothing wanted or needed to be masked out. Default None
+            caches(dict, optional): It caches the multi-head attention intermediate
+                results of history decoding steps and encoder output. It is a dict
+                has `k`, `v`, `static_k`, `statkc_v` as keys and values are cached
+                results. It is only used for inference and should be None for
+                training. Default None
+
+        Returns:
+            Variable: The output of Transformer decoder layer. It is a tensor \
+                that has the same shape and data type as `dec_input`.
+        """
         self_attn_output = self.self_attn(
             self.preprocesser1(dec_input), None, None, self_attn_bias, cache)
         self_attn_output = self.postprocesser1(self_attn_output, dec_input)
@@ -3459,12 +3746,71 @@ class TransformerDecoderLayer(Layer):
 
 class TransformerDecoder(Layer):
     """
-    decoder
+    TransformerDecoder is a stack of N decoder layers.
+
+    Parameters:
+        n_layer (int): The number of encoder layers to be stacked.
+        n_head (int): The number of heads in multi-head attention(MHA).
+        d_key (int): The feature size to transformer queries and keys as in
+            multi-head attention. Mostly it equals to `d_model // n_head`.
+        d_value (int): The feature size to transformer values as in multi-head
+            attention. Mostly it equals to `d_model // n_head`.
+        d_model (int): The expected feature size in the input and output.
+        d_inner_hid (int): The hidden layer size in the feedforward network(FFN).
+        prepostprocess_dropout (float, optional): The dropout probability used
+            in pre-process and post-precess of MHA and FFN sub-layer. Default 0.1
+        attention_dropout (float, optional): The dropout probability used
+            in MHA to drop some attention target. Default 0.1
+        relu_dropout (float, optional): The dropout probability used after FFN
+            activition. Default 0.1
+        preprocess_cmd (str, optional): The process applied before each MHA and
+            FFN sub-layer, and it also would be applied on output of the last
+            stacked layer. It should be a string composed of `d`, `a`, `n`,
+            where `d` for dropout, `a` for add residual connection, `n` for
+            layer normalization. Default `n`.
+        postprocess_cmd (str, optional): The process applied after each MHA and
+            FFN sub-layer. Same as `preprocess_cmd`. It should be a string
+            composed of `d`, `a`, `n`, where `d` for dropout, `a` for add
+            residual connection, `n` for layer normalization. Default `da`.
+        ffn_fc1_act (str, optional): The activation function in the feedforward
+            network. Default relu.
+         
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import TransformerDecoder
+
+            # decoder input: [batch_size, trg_len, d_model]
+            dec_input = paddle.rand((2, 4, 128))
+            # encoder output: [batch_size, src_len, d_model]
+            enc_output = paddle.rand((2, 6, 128))
+            # self attention bias: [batch_size, n_head, trg_len, trg_len]
+            self_attn_bias = paddle.rand((2, 2, 4, 4))
+            # cross attention bias: [batch_size, n_head, trg_len, src_len]
+            cross_attn_bias = paddle.rand((2, 2, 4, 6))
+            decoder = TransformerDecoder(2, 2, 64, 64, 128, 512)
+            dec_output = decoder(dec_input,
+                                 enc_output,
+                                 self_attn_bias,
+                                 cross_attn_bias)  # [2, 4, 128]
     """
 
-    def __init__(self, n_layer, n_head, d_key, d_value, d_model, d_inner_hid,
-                 prepostprocess_dropout, attention_dropout, relu_dropout,
-                 preprocess_cmd, postprocess_cmd):
+    def __init__(self,
+                 n_layer,
+                 n_head,
+                 d_key,
+                 d_value,
+                 d_model,
+                 d_inner_hid,
+                 prepostprocess_dropout=0.1,
+                 attention_dropout=0.1,
+                 relu_dropout=0.1,
+                 preprocess_cmd="n",
+                 postprocess_cmd="da",
+                 ffn_fc1_act="relu"):
         super(TransformerDecoder, self).__init__()
 
         self.n_layer = n_layer
@@ -3487,9 +3833,42 @@ class TransformerDecoder(Layer):
     def forward(self,
                 dec_input,
                 enc_output,
-                self_attn_bias,
-                cross_attn_bias,
+                self_attn_bias=None,
+                cross_attn_bias=None,
                 caches=None):
+        """
+        Applies a stack of N Transformer decoder layers on inputs.
+
+        Parameters:
+            dec_input (Variable): The input of Transformer decoder. It is a tensor
+                with shape `[batch_size, target_length, d_model]`. The data type
+                should be float32 or float64.
+            enc_output (Variable): The output of Transformer encoder. It is a tensor
+                with shape `[batch_size, source_length, d_model]`. The data type
+                should be float32 or float64.
+            self_attn_bias (Variable, optional): A tensor used in decoder self attention
+                to mask out attention on unwanted positions, usually the subsequent positions.
+                It is a tensor with shape `[batch_size, n_head, target_length, target_length]`,
+                where the unwanted positions have `-INF` values and the others
+                have 0 values. The data type should be float32 or float64. It can
+                be None when nothing wanted or needed to be masked out. Default None
+            cross_attn_bias (Variable, optional): A tensor used in decoder-encoder cross
+                attention to mask out attention on unwanted positions, usually the paddings.
+                It is a tensor with shape `[batch_size, n_head, target_length, target_length]`,
+                where the unwanted positions have `-INF` values and the others
+                have 0 values. The data type should be float32 or float64. It can
+                be None when nothing wanted or needed to be masked out. Default None
+            caches(list, optional): It caches the multi-head attention intermediate results
+                of history decoding steps and encoder output. It is a list of dict
+                where the length of list is decoder layer number, and each dict
+                has `k`, `v`, `static_k`, `statkc_v` as keys and values are cached
+                results. It is only used for inference and should be None for
+                training. Default None
+
+        Returns:
+            Variable: The output of Transformer decoder. It is a tensor that has \
+                the same shape and data type as `dec_input`.
+        """
         for i, decoder_layer in enumerate(self.decoder_layers):
             dec_output = decoder_layer(dec_input, enc_output, self_attn_bias,
                                        cross_attn_bias, caches[i]
@@ -3499,6 +3878,22 @@ class TransformerDecoder(Layer):
         return self.processer(dec_output)
 
     def prepare_static_cache(self, enc_output):
+        """
+        Generate a list of dict where the length of list is decoder layer number.
+        Each dict has `static_k`, `statkc_v` as keys, and values are projected
+        results of encoder output to be used as keys and values in decoder-encoder
+        cross (multi-head) attention. Used in inference.
+
+        Parameters:
+            enc_output (Variable): The output of Transformer encoder. It is a tensor
+                with shape `[batch_size, source_length, d_model]`. The data type
+                should be float32 or float64.
+
+        Returns:
+            list: A list of dict. Each dict has `static_k`, `statkc_v` as keys, \
+                and values are projected results of encoder output to be used as \
+                keys and values in decoder-encoder cross (multi-head) attention.
+        """
         return [
             dict(
                 zip(("static_k", "static_v"),
@@ -3507,6 +3902,26 @@ class TransformerDecoder(Layer):
         ]
 
     def prepare_incremental_cache(self, enc_output):
+        """
+        Generate a list of dict where the length of list is decoder layer number.
+        Each dict has `k`, `v` as keys, and values are empty tensors with shape
+        `[batch_size, n_head, 0, d_key]` and `[batch_size, n_head, 0, d_value]`,
+        representing the decoder self (multi-head) attention intermediate results,
+        and 0 is the initial length which would increase as inference decoding
+        continued. Used in inference.
+
+        Parameters:
+            enc_output (Variable): The output of Transformer encoder. It is a tensor
+                with shape `[batch_size, source_length, d_model]`. The data type
+                should be float32 or float64. Actually, it is used to provide batch
+                size for Transformer initial states(caches), thus any tensor has
+                wanted batch size can be used here.
+
+        Returns:
+            list: A list of dict. Each dict has `k`, `v` as keys, and values are \
+                empty tensors representing intermediate results of history decoding \
+                steps in decoder self (multi-head) attention at time step 0.
+        """
         return [{
             "k": layers.fill_constant_batch_size_like(
                 input=enc_output,
