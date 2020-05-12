@@ -37,9 +37,6 @@ from hapi.text.text import TransformerDecoder as TransformerDecoder
 from hapi.text.text import TransformerCell as TransformerCell
 from hapi.text.text import TransformerBeamSearchDecoder as TransformerBeamSearchDecoder
 
-from hapi.text.text import GRUCell as GRUCell
-from hapi.text.text import GRUEncoderCell as GRUEncoderCell
-from hapi.text.text import BiGRU as BiGRU
 from hapi.text.text import LinearChainCRF as LinearChainCRF
 from hapi.text.text import CRFDecoding as CRFDecoding
 from hapi.text.text import SequenceTagging as SequenceTagging

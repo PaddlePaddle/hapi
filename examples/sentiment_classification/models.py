@@ -16,8 +16,9 @@ from paddle.fluid.dygraph.nn import Linear, Embedding
 from paddle.fluid.dygraph.base import to_variable
 import numpy as np
 from hapi.model import Model
-from hapi.text.text import GRUEncoder as BiGRUEncoder
-from hapi.text.test import BOWEncoder, CNNEncoder, GRUEncoder
+from hapi.text.text import _GRUEncoder as GRUEncoder
+from hapi.text.text import _GRUEncoder as BiGRUEncoder
+from hapi.text.test import BOWEncoder, CNNEncoder
 
 
 class CNN(Model):

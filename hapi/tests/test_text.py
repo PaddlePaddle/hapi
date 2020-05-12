@@ -28,47 +28,6 @@ from hapi.model import Model, Input, set_device
 from hapi.text.text import *
 
 
-def sigmoid(x):
-    return 1. / (1. + np.exp(-x))
-
-
-def tanh(x):
-    return 2. * sigmoid(2. * x) - 1.
-
-
-def lstm_step(step_in, pre_hidden, pre_cell, gate_w, gate_b, forget_bias=1.0):
-    concat_1 = np.concatenate([step_in, pre_hidden], 1)
-
-    gate_input = np.matmul(concat_1, gate_w)
-    gate_input += gate_b
-    i, j, f, o = np.split(gate_input, indices_or_sections=4, axis=1)
-
-    new_cell = pre_cell * sigmoid(f + forget_bias) + sigmoid(i) * tanh(j)
-    new_hidden = tanh(new_cell) * sigmoid(o)
-
-    return new_hidden, new_cell
-
-
-def gru_step(step_in, pre_hidden, gate_w, gate_b, candidate_w, candidate_b):
-    concat_1 = np.concatenate([step_in, pre_hidden], 1)
-
-    gate_input = np.matmul(concat_1, gate_w)
-    gate_input += gate_b
-    gate_input = sigmoid(gate_input)
-    r, u = np.split(gate_input, indices_or_sections=2, axis=1)
-
-    r_hidden = r * pre_hidden
-
-    candidate = np.matmul(np.concatenate([step_in, r_hidden], 1), candidate_w)
-
-    candidate += candidate_b
-    c = tanh(candidate)
-
-    new_hidden = u * pre_hidden + (1 - u) * c
-
-    return new_hidden
-
-
 class ModuleApiTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
