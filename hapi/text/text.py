@@ -2969,13 +2969,37 @@ class TransformerBeamSearchDecoder(layers.BeamSearchDecoder):
 ### Transformer Modules ###
 class PrePostProcessLayer(Layer):
     """
-    PrePostProcessLayer
+    PrePostProcessLayer is used before/after each multi-head attention(MHA) and
+    feed-forward network(FFN) sub-layer to perform some specific process on
+    inputs/outputs.
+
+    Parameters:
+        process_cmd (str): The process applied before/after each MHA and
+            FFN sub-layer. It should be a string composed of `d`, `a`, `n`,
+            where `d` for dropout, `a` for add residual connection, `n` for
+            layer normalization.
+        d_model (int): The expected feature size in the input and output.
+        dropout_rate (float): The dropout probability if the process includes
+            dropout. Default 0.1
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import PrePostProcessLayer
+
+            # input: [batch_size, sequence_length, d_model]
+            x = paddle.rand((2, 4, 32))
+            process = PrePostProcessLayer('n', 32)
+            out = process(x)  # [2, 4, 32]
     """
 
     def __init__(self,
                  process_cmd,
                  d_model,
-                 dropout_rate,
+                 dropout_rate=0.1,
                  reused_layer_norm=None):
         super(PrePostProcessLayer, self).__init__()
         self.process_cmd = process_cmd
@@ -3006,6 +3030,21 @@ class PrePostProcessLayer(Layer):
                                      if dropout_rate else x)
 
     def forward(self, x, residual=None):
+        """
+        Applies `process_cmd` specified process on `x`.
+
+        Parameters:
+            x (Variable): The tensor to be processed. The data type should be float32
+                or float64. The shape is `[batch_size, sequence_length, d_model]`.
+                
+            residual (Variable, optional): Only used if the process includes
+                residual connection. It has the same shape and data type as `x`.
+                Default None
+
+        Returns:
+            Variable: The processed tensor. It has the same shape and data type \
+                    as `x`.
+        """
         for i, cmd in enumerate(self.process_cmd):
             if cmd == "a":
                 x = self.functors[i](x, residual)
@@ -3205,7 +3244,7 @@ class MultiHeadAttention(Layer):
 
         # scale dot product attention
         product = layers.matmul(
-            x=q, y=k, transpose_y=True, alpha=self.d_model**-0.5)
+            x=q, y=k, transpose_y=True, alpha=self.d_key**-0.5)
         if attn_bias is not None:
             product += attn_bias
         weights = layers.softmax(product)
@@ -3265,12 +3304,25 @@ class FFN(Layer):
             activition. Default 0.1
         ffn_fc1_act (str, optional): The activation function in the feedforward
             network. Default relu.
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import FFN
+
+            # input: [batch_size, sequence_length, d_model]
+            x = paddle.rand((2, 4, 32))
+            ffn = FFN(128, 32)
+            out = ffn(x)  # [2, 4, 32]
     """
 
     def __init__(self,
                  d_inner_hid,
                  d_model,
-                 dropout_rate,
+                 dropout_rate=0.1,
                  fc1_act="relu",
                  reused_fc1=None,
                  reused_fc2=None):
@@ -4032,13 +4084,78 @@ class BiGRU(fluid.dygraph.Layer):
 
 
 class LinearChainCRF(Layer):
-    def __init__(self, param_attr, size=None, is_test=False, dtype='float32'):
-        super(LinearChainCRF, self).__init__()
+    """
+    Computes the negtive log-likelihood of tag sequences in a linear chain CRF. 
+    Using terminologies of undirected probabilistic graph model, it calculates
+    probability using unary potentials (for emission) and binary potentials 
+    (for transition). 
 
+    This layer creates a learnable parameter shaped `[size + 2, size]` (`size`
+    is for the number of tags), where:
+    
+    1. the first row is for starting weights, denoted as $a$ here
+    
+    2. the second row is for ending weights, denoted as $b$ here.
+    
+    3. the remaining rows is a matrix for transition weights. 
+    
+    Denote input tensor of unary potentials(emission) as $x$ , then the probability
+    of a tag sequence $s$ of length $L$ is defined as:
+
+    $$P(s) = (1/Z) \exp(a_{s_1} + b_{s_L}
+                    + \sum_{l=1}^L x_{s_l}
+                    + \sum_{l=2}^L w_{s_{l-1},s_l})$$
+    
+    where $Z$ is a normalization value so that the sum of $P(s)$ over
+    all possible sequences is 1, and $x$ is the emission feature weight
+    to the linear chain CRF.
+
+    This operator implements the Forward-Backward algorithm for the linear chain
+    CRF. Please refer to http://www.cs.columbia.edu/~mcollins/fb.pdf and
+    http://cseweb.ucsd.edu/~elkan/250Bwinter2012/loglinearCRFs.pdf for details.
+
+    NOTE:
+
+    1. The feature function for a CRF is made up of the emission features and the
+    transition features. The emission feature weights are NOT computed in
+    this operator. They MUST be computed first before this operator is called.
+
+    2. Because this operator performs global normalization over all possible
+    sequences internally, it expects UNSCALED emission feature weights.
+    Please do not call this op with the emission feature being output of any
+    nonlinear activation.
+
+    3. The 2nd dimension of input(emission) MUST be equal to the tag number.
+
+    Parameters:
+        size (int): The number of tags.
+        param_attr (ParamAttr, optional): The attribute of the learnable parameter for
+            transition. Default: None
+        dtype (str, optional): Data type, it can be 'float32' or 'float64'.
+            Default: `float32`
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import LinearChainCRF
+
+            # emission: [batch_size, sequence_length, num_tags]
+            emission = paddle.rand((2, 8, 5))
+            # label: [batch_size, sequence_length, num_tags]
+            # dummy label just for example usage
+            label = fluid.layers.ones((2, 8, 5), dtype='int64')  
+            crf = LinearChainCRF(size=5)
+            cost = crf(emission, label)  # [2, 1]
+    """
+
+    def __init__(self, size, param_attr=None, dtype='float32'):
+        super(LinearChainCRF, self).__init__()
         self._param_attr = param_attr
         self._dtype = dtype
         self._size = size
-        self._is_test = is_test
         self._transition = self.create_parameter(
             attr=self._param_attr,
             shape=[self._size + 2, self._size],
@@ -4046,14 +4163,46 @@ class LinearChainCRF(Layer):
 
     @property
     def weight(self):
+        """
+        getter for transition matrix parameter
+
+        Returns:
+            Parameter: The learnable transition parameter shaped `[size + 2, size]` \
+                (`size` is for the number of tags). The data type should be float32 \
+                or float64.
+        """
         return self._transition
 
     @weight.setter
     def weight(self, value):
+        """
+        setter for transition matrix parameter
+
+        Parameters:
+            value (Parameter): The learnable transition parameter shaped `[size + 2, size]` \
+                (`size` is for the number of tags). The data type should be float32 \
+                or float64.
+        """
         self._transition = value
 
-    def forward(self, input, label, length=None):
+    def forward(self, input, label, length):
+        """
+        Computes the log-likelihood of tag sequences in a linear chain CRF.
 
+        Parameters:
+            input (Variable): The input of unary potentials(emission). It is a
+                tensor with shape `[batch_size, sequence_length, num_tags]`.
+                The data type should be float32 or float64.
+            label (Variable): The golden sequence tags. It is a tensor
+                with shape `[batch_size, sequence_length]`. The data type
+                should be int64.
+            length (Variable): A tensor with shape `[batch_size]`. It stores real
+                length of each sequence for correctness.
+
+        Returns:
+            Variable: The negtive log-likelihood of tag sequences. It is a tensor \
+                with shape `[batch_size, 1]` and has float32 or float64 data type.
+        """
         alpha = self._helper.create_variable_for_type_inference(
             dtype=self._dtype)
         emission_exps = self._helper.create_variable_for_type_inference(
@@ -4077,18 +4226,58 @@ class LinearChainCRF(Layer):
                 "EmissionExps": [emission_exps],
                 "TransitionExps": transition_exps,
                 "LogLikelihood": log_likelihood
-            },
-            attrs={"is_test": self._is_test, })
+            })
         return log_likelihood
 
 
 class CRFDecoding(Layer):
-    def __init__(self, param_attr, size=None, is_test=False, dtype='float32'):
-        super(CRFDecoding, self).__init__()
+    """
+    CRFDecoding reads the emission feature weights and the transition
+    feature weights learned by the `LinearChainCRF` and performs decoding. 
+    It implements the Viterbi algorithm which is a dynamic programming algorithm 
+    for finding the most likely sequence of hidden states, called the Viterbi path, 
+    that results in a sequence of observed tags.
 
+    The output of this layer changes according to whether `label` is given:
+
+    1. `label` is given:
+
+    This happens in training. This operator is used to co-work with the chunk_eval
+    operator. When `label` is given, it returns tensor with the same shape as 
+    `label` whose values are fixed to be 0, indicating an incorrect prediction,
+    or 1 indicating a tag is correctly predicted. Such an output is the input to
+    chunk_eval operator.
+
+    2. `label` is not given:
+
+    This is the standard decoding process and get the highest scoring sequence
+    of tags.
+
+    Parameters:
+        size (int): The number of tags.
+        param_attr (ParamAttr, optional): The attribute of the learnable parameter for
+            transition. Default: None
+        dtype (str, optional): Data type, it can be 'float32' or 'float64'.
+            Default: `float32`
+
+    Examples:
+
+        .. code-block:: python
+
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import CRFDecoding
+
+            # emission: [batch_size, sequence_length, num_tags]
+            emission = paddle.rand((2, 8, 5)) 
+            crf_decoding = CRFDecoding(size=5)
+            cost = crf_decoding(emission)  # [2, 8]
+    """
+
+    def __init__(self, size, param_attr=None, dtype='float32'):
+        super(CRFDecoding, self).__init__()
         self._dtype = dtype
         self._size = size
-        self._is_test = is_test
         self._param_attr = param_attr
         self._transition = self.create_parameter(
             attr=self._param_attr,
@@ -4097,13 +4286,49 @@ class CRFDecoding(Layer):
 
     @property
     def weight(self):
+        """
+        getter for transition matrix parameter
+
+        Returns:
+            Parameter: The learnable transition parameter shaped `[size + 2, size]` \
+                (`size` is for the number of tags). The data type should be float32 \
+                or float64.
+        """
         return self._transition
 
     @weight.setter
     def weight(self, value):
+        """
+        setter for transition matrix parameter
+
+        Parameters:
+            value (Parameter): The learnable transition parameter shaped `[size + 2, size]` \
+                (`size` is for the number of tags). The data type should be float32 \
+                or float64.
+        """
         self._transition = value
 
-    def forward(self, input, label=None, length=None):
+    def forward(self, input, length, label=None):
+        """
+        Performs sequence tagging prediction.
+
+        Parameters:
+            input (Variable): The input of unary potentials(emission). It is a
+                tensor with shape `[batch_size, sequence_length, num_tags]`.
+                The data type should be float32 or float64.
+            length (Variable): A tensor with shape `[batch_size]`.
+                It stores real length of each sequence for correctness.
+            label (Variable, optional): The golden sequence tags. It is a tensor
+                with shape `[batch_size, sequence_length]`. The data type
+                should be int64. Default None.
+
+        Returns:
+            Variable: A tensor with shape `[batch_size, sequence_length]` and \
+                int64 data type. If `label` is None, the tensor has binary values \
+                indicating a correct or incorrect prediction. Otherwise its values \
+                range from 0 to maximum tag number - 1, each element indicates \
+                an index of a predicted tag.
+        """
 
         viterbi_path = self._helper.create_variable_for_type_inference(
             dtype=self._dtype)
@@ -4117,12 +4342,15 @@ class CRFDecoding(Layer):
         self._helper.append_op(
             type='crf_decoding',
             inputs=this_inputs,
-            outputs={"ViterbiPath": [viterbi_path]},
-            attrs={"is_test": self._is_test, })
+            outputs={"ViterbiPath": [viterbi_path]})
         return viterbi_path
 
 
 class GRUEncoder(Layer):
+    """
+    A multi-layer bidirectional GRU encoder used by SequenceTagging.
+    """
+
     def __init__(self,
                  input_dim,
                  grnn_hidden_dim,
@@ -4179,6 +4407,43 @@ class GRUEncoder(Layer):
 
 
 class SequenceTagging(Layer):
+    """
+    Sequence tagging model using multi-layer bidirectional GRU as backbone and
+    linear chain CRF as output layer.
+
+    Parameters:
+        vocab_size (int): The size of vocabulary.
+        num_labels (int): The number of labels.
+        word_emb_dim (int, optional): The embedding size. Defalut 128
+        grnn_hidden_dim (int, optional): The hidden size of GRU. Defalut 128
+        emb_learning_rate (int, optional): The partial learning rate for embedding.
+            The actual learning rate for embedding would multiply it with the global
+            learning rate. Default 0.1
+        crf_learning_rate (int, optional): The partial learning rate for crf. The
+            actual learning rate for embedding would multiply it with the global
+            learning rate. Default 0.1
+        bigru_num (int, optional): The number of bidirectional GRU layers.
+            Default 2
+        init_bound (float, optional): The range for uniform initializer would
+            be `(-init_bound, init_bound)`. It would be used for all parameters
+            except CRF transition matrix. Default 0.1
+
+    Examples:
+
+        .. code-block:: python
+
+            import numpy as np
+            import paddle
+            import paddle.fluid as fluid
+            from paddle.incubate.hapi.text import SequenceTagging
+
+            # word: [batch_size, sequence_length]
+            word = fluid.layers.ones([2, 8])  # dummy input just for example
+            length = fluid.layers.assign(np.array([6, 8]).astype('int64'))
+            seq_tagger = SequenceTagging(vocab_size=100, num_labels=5)
+            outputs = seq_tagger(word, length)
+    """
+
     def __init__(self,
                  vocab_size,
                  num_labels,
@@ -4189,15 +4454,6 @@ class SequenceTagging(Layer):
                  bigru_num=2,
                  init_bound=0.1):
         super(SequenceTagging, self).__init__()
-        """
-        define the sequence tagging network structure
-        word: stores the input of the model
-        for_infer: a boolean value, indicating if the model to be created is for training or predicting.
-
-        return:
-            for infer: return the prediction
-            otherwise: return the prediction
-        """
         self.word_emb_dim = word_emb_dim
         self.vocab_size = vocab_size
         self.num_labels = num_labels
@@ -4244,7 +4500,27 @@ class SequenceTagging(Layer):
 
     def forward(self, word, lengths, target=None):
         """
-        Configure the network
+        Performs sequence tagging. If `target` is None, it is for training and
+        loss would be returned, otherwise it is for inference and returns the
+        predicted tags.
+
+        Parameters:
+            word (Variable): The input sequences to be labeled. It is a tensor
+                with shape `[batch_size, sequence_length]`. The data type should
+                be int64.
+            lengths (Variable): A tensor with shape `[batch_size]`. It stores real
+                length of each sequence.
+            target (Variable, optional): The golden sequence tags. It is a tensor
+                with shape `[batch_size, sequence_length]`. The data type
+                should be int64. It could be None for inference. Default None.
+
+        Returns:
+            tuple: A tuple( :code:`(crf_decode, avg_cost, lengths)` ) If input \
+                argument `target` is provided, including the most likely sequence \
+                tags, the averaged CRF cost and the sequence lengths, the shapes \
+                are `[batch_size, sequence_length]`, `[1]` and `[batch_size]`, \
+                and the data types are int64, float32 and int64. Otherwise A \
+                tuple( :code:`(crf_decode, lengths)` ) for inference.
         """
         word_embed = self.word_embedding(word)
         input_feature = word_embed
