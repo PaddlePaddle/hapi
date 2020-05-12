@@ -567,6 +567,40 @@ class TestSequenceTaggingInfer(TestSequenceTagging):
         return inputs
 
 
+class TestStackedRNN(ModuleApiTest):
+    def setUp(self):
+        shape = (2, 4, 16)
+        self.inputs = [np.random.random(shape).astype("float32")]
+        self.outputs = None
+        self.attrs = {"input_size": 16, "hidden_size": 16, "num_layers": 2}
+        self.param_states = {}
+
+    @staticmethod
+    def model_init(self, input_size, hidden_size, num_layers):
+        cells = [
+            BasicLSTMCell(input_size, hidden_size),
+            BasicLSTMCell(hidden_size, hidden_size)
+        ]
+        stacked_cell = StackedRNNCell(cells)
+        self.lstm = RNN(stacked_cell)
+
+    @staticmethod
+    def model_forward(self, inputs):
+        return self.lstm(inputs)[0]
+
+    def make_inputs(self):
+        inputs = [
+            Input(
+                [None, None, self.inputs[-1].shape[-1]],
+                "float32",
+                name="input"),
+        ]
+        return inputs
+
+    def test_check_output(self):
+        self.check_output()
+
+
 class TestLSTM(ModuleApiTest):
     def setUp(self):
         shape = (2, 4, 16)

@@ -49,6 +49,8 @@ __all__ = [
     'BasicLSTMCell',
     'BasicGRUCell',
     'RNN',
+    'BidirectionalRNN',
+    'StackedRNNCell',
     'StackedLSTMCell',
     'LSTM',
     'BidirectionalLSTM',
@@ -1025,6 +1027,7 @@ class StackedRNNCell(RNNCell):
     """
 
     def __init__(self, cells):
+        super(StackedRNNCell, self).__init__()
         self.cells = []
         for i, cell in enumerate(cells):
             self.cells.append(self.add_sublayer("cell_%d" % i, cell))
