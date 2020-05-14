@@ -32,10 +32,10 @@ gram_matrix = fluid.layers.matmul(tensor, fluid.layers.transpose(tensor, [1, 0])
 import numpy as np
 import matplotlib.pyplot as plt
 
-from hapi.model import Model, Loss
+from paddle.incubate.hapi.model import Model, Loss
 
-from hapi.vision.models import vgg16
-from hapi.vision.transforms import transforms
+from paddle.incubate.hapi.vision.models import vgg16
+from paddle.incubate.hapi.vision.transforms import transforms
 from paddle import fluid
 from paddle.fluid.io import Dataset
 

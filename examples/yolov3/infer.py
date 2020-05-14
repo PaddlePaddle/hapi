@@ -18,13 +18,13 @@ from __future__ import print_function
 import os
 import argparse
 import numpy as np
-from PIL import Image 
+from PIL import Image
 
 from paddle import fluid
 from paddle.fluid.optimizer import Momentum
 from paddle.io import DataLoader
 
-from hapi.model import Model, Input, set_device
+from paddle.incubate.hapi.model import Model, Input, set_device
 
 from modeling import yolov3_darknet53, YoloLoss
 from transforms import *
@@ -64,16 +64,20 @@ def load_labels(label_list, with_background=True):
 def main():
     device = set_device(FLAGS.device)
     fluid.enable_dygraph(device) if FLAGS.dynamic else None
-    
-    inputs = [Input([None, 1], 'int64', name='img_id'),
-              Input([None, 2], 'int32', name='img_shape'),
-              Input([None, 3, None, None], 'float32', name='image')]
+
+    inputs = [
+        Input(
+            [None, 1], 'int64', name='img_id'), Input(
+                [None, 2], 'int32', name='img_shape'), Input(
+                    [None, 3, None, None], 'float32', name='image')
+    ]
 
     cat2name = load_labels(FLAGS.label_list, with_background=False)
 
-    model = yolov3_darknet53(num_classes=len(cat2name),
-                             model_mode='test',
-                             pretrained=FLAGS.weights is None)
+    model = yolov3_darknet53(
+        num_classes=len(cat2name),
+        model_mode='test',
+        pretrained=FLAGS.weights is None)
 
     model.prepare(inputs=inputs, device=FLAGS.device)
 
@@ -82,7 +86,7 @@ def main():
 
     # image preprocess
     orig_img = Image.open(FLAGS.infer_image).convert('RGB')
-    w, h  = orig_img.size
+    w, h = orig_img.size
     img = orig_img.resize((608, 608), Image.BICUBIC)
     img = np.array(img).astype('float32') / 255.0
     img -= np.array(IMAGE_MEAN)
@@ -106,19 +110,33 @@ if __name__ == '__main__':
     parser.add_argument(
         "-d", "--dynamic", action='store_true', help="enable dygraph mode")
     parser.add_argument(
-        "--label_list", type=str, default=None,
+        "--label_list",
+        type=str,
+        default=None,
         help="path to category label list file")
     parser.add_argument(
-        "-t", "--draw_threshold", type=float, default=0.5,
+        "-t",
+        "--draw_threshold",
+        type=float,
+        default=0.5,
         help="threshold to reserve the result for visualization")
     parser.add_argument(
-        "-i", "--infer_image", type=str, default=None,
+        "-i",
+        "--infer_image",
+        type=str,
+        default=None,
         help="image path for inference")
     parser.add_argument(
-        "-o", "--output_dir", type=str, default='output',
+        "-o",
+        "--output_dir",
+        type=str,
+        default='output',
         help="directory to save inference result if --visualize is set")
     parser.add_argument(
-        "-w", "--weights", default=None, type=str,
+        "-w",
+        "--weights",
+        default=None,
+        type=str,
         help="path to weights for inference")
     FLAGS = parser.parse_args()
     print_arguments(FLAGS)

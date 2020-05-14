@@ -25,7 +25,7 @@ from paddle.fluid.layers.utils import flatten
 from utils.configure import PDConfig
 from utils.check import check_gpu, check_version
 
-from hapi.model import Input, set_device
+from paddle.incubate.hapi.model import Input, set_device
 from reader import prepare_infer_input, Seq2SeqDataset, Seq2SeqBatchSampler
 from transformer import InferTransformer
 

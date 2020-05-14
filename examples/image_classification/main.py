@@ -27,11 +27,11 @@ import paddle.fluid as fluid
 from paddle.fluid.dygraph.parallel import ParallelEnv
 from paddle.io import BatchSampler, DataLoader
 
-from hapi.model import Input, set_device
-from hapi.loss import CrossEntropy
-from hapi.distributed import DistributedBatchSampler
-from hapi.metrics import Accuracy
-import hapi.vision.models as models
+from paddle.incubate.hapi.model import Input, set_device
+from paddle.incubate.hapi.loss import CrossEntropy
+from paddle.incubate.hapi.distributed import DistributedBatchSampler
+from paddle.incubate.hapi.metrics import Accuracy
+import paddle.incubate.hapi.vision.models as models
 
 from imagenet_dataset import ImageNetDataset
 

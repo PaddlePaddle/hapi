@@ -19,8 +19,8 @@ from __future__ import print_function
 import numpy as np
 
 import paddle.fluid as fluid
-from hapi.model import Model
-from hapi.loss import Loss
+from paddle.incubate.hapi.model import Model
+from paddle.incubate.hapi.loss import Loss
 
 from layers import ConvBN, DeConvBN
 

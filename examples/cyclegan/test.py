@@ -22,7 +22,7 @@ import numpy as np
 from scipy.misc import imsave
 
 import paddle.fluid as fluid
-from hapi.model import Model, Input, set_device
+from paddle.incubate.hapi.model import Model, Input, set_device
 
 from check import check_gpu, check_version
 from cyclegan import Generator, GeneratorCombine

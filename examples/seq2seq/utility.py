@@ -16,8 +16,8 @@ import math
 
 import paddle.fluid as fluid
 
-from hapi.metrics import Metric
-from hapi.callbacks import ProgBarLogger
+from paddle.incubate.hapi.metrics import Metric
+from paddle.incubate.hapi.callbacks import ProgBarLogger
 
 
 class TrainCallback(ProgBarLogger):

@@ -28,11 +28,11 @@ import numpy as np
 work_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(work_dir, "../"))
 
-from hapi.model import set_device, Input
-from hapi.text.sequence_tagging import SeqTagging, ChunkEval, LacLoss
-from hapi.text.sequence_tagging import LacDataset, LacDataLoader
-from hapi.text.sequence_tagging import check_gpu, check_version
-from hapi.text.sequence_tagging import PDConfig
+from paddle.incubate.hapi.model import set_device, Input
+from paddle.incubate.hapi.text.sequence_tagging import SeqTagging, ChunkEval, LacLoss
+from paddle.incubate.hapi.text.sequence_tagging import LacDataset, LacDataLoader
+from paddle.incubate.hapi.text.sequence_tagging import check_gpu, check_version
+from paddle.incubate.hapi.text.sequence_tagging import PDConfig
 
 import paddle.fluid as fluid
 from paddle.fluid.layers.utils import flatten
@@ -65,7 +65,8 @@ def main(args):
         device=place)
     model.load(args.init_from_checkpoint, skip_mismatch=True)
 
-    eval_result = model.evaluate(eval_dataset.dataloader, batch_size=args.batch_size)
+    eval_result = model.evaluate(
+        eval_dataset.dataloader, batch_size=args.batch_size)
     print("precison: %.5f" % (eval_result["precision"][0]))
     print("recall: %.5f" % (eval_result["recall"][0]))
     print("F1: %.5f" % (eval_result["F1"][0]))

@@ -29,11 +29,11 @@ import numpy as np
 work_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(work_dir, "../"))
 
-from hapi.text.sequence_tagging import SeqTagging
-from hapi.model import Input, set_device
-from hapi.text.sequence_tagging import LacDataset, LacDataLoader
-from hapi.text.sequence_tagging import check_gpu, check_version
-from hapi.text.sequence_tagging import PDConfig
+from paddle.incubate.hapi.text.sequence_tagging import SeqTagging
+from paddle.incubate.hapi.model import Input, set_device
+from paddle.incubate.hapi.text.sequence_tagging import LacDataset, LacDataLoader
+from paddle.incubate.hapi.text.sequence_tagging import check_gpu, check_version
+from paddle.incubate.hapi.text.sequence_tagging import PDConfig
 
 import paddle.fluid as fluid
 from paddle.fluid.layers.utils import flatten

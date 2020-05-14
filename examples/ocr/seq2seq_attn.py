@@ -19,9 +19,9 @@ import paddle.fluid as fluid
 import paddle.fluid.layers as layers
 from paddle.fluid.layers import BeamSearchDecoder
 
-from hapi.text import RNNCell, RNN, DynamicDecode
-from hapi.model import Model
-from hapi.loss import Loss
+from paddle.incubate.hapi.text import RNNCell, RNN, DynamicDecode
+from paddle.incubate.hapi.model import Model
+from paddle.incubate.hapi.loss import Loss
 
 
 class ConvBNPool(fluid.dygraph.Layer):

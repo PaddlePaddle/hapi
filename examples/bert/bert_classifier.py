@@ -14,14 +14,14 @@
 """BERT fine-tuning in Paddle Dygraph Mode."""
 
 import paddle.fluid as fluid
-from hapi.metrics import Accuracy
-from hapi.configure import Config
-from hapi.text.bert import BertEncoder
+from paddle.incubate.hapi.metrics import Accuracy
+from paddle.incubate.hapi.configure import Config
+from paddle.incubate.hapi.text.bert import BertEncoder
 from paddle.fluid.dygraph import Linear, Layer
-from hapi.loss import SoftmaxWithCrossEntropy
-from hapi.model import set_device, Model, Input
-import hapi.text.tokenizer.tokenization as tokenization
-from hapi.text.bert import BertConfig, BertDataLoader, BertInputExample, make_optimizer
+from paddle.incubate.hapi.loss import SoftmaxWithCrossEntropy
+from paddle.incubate.hapi.model import set_device, Model, Input
+import paddle.incubate.hapi.text.tokenizer.tokenization as tokenization
+from paddle.incubate.hapi.text.bert import BertConfig, BertDataLoader, BertInputExample, make_optimizer
 
 
 class ClsModelLayer(Model):
@@ -157,7 +157,8 @@ def main():
         labels,
         device=device)
 
-    cls_model.bert_layer.load("./bert_uncased_L-12_H-768_A-12/bert", reset_optimizer=True)
+    cls_model.bert_layer.load(
+        "./bert_uncased_L-12_H-768_A-12/bert", reset_optimizer=True)
 
     # do train
     cls_model.fit(train_data=train_dataloader.dataloader,

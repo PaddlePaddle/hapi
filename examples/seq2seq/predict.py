@@ -23,7 +23,7 @@ import paddle.fluid as fluid
 from paddle.fluid.layers.utils import flatten
 from paddle.fluid.io import DataLoader
 
-from hapi.model import Input, set_device
+from paddle.incubate.hapi.model import Input, set_device
 from args import parse_args
 from seq2seq_base import BaseInferModel
 from seq2seq_attn import AttentionInferModel

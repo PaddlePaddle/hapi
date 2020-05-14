@@ -17,8 +17,8 @@ import paddle.fluid as fluid
 from paddle.fluid.layer_helper import LayerHelper
 from paddle.fluid.dygraph.nn import Conv2D, Pool2D, BatchNorm, Linear
 
-from hapi.model import Model
-from hapi.download import get_weights_path_from_url
+from paddle.incubate.hapi.model import Model
+from paddle.incubate.hapi.download import get_weights_path_from_url
 
 __all__ = ["TSM_ResNet", "tsm_resnet50"]
 

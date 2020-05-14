@@ -25,9 +25,9 @@ from PIL import Image
 import paddle.fluid.profiler as profiler
 import paddle.fluid as fluid
 
-from hapi.model import Input, set_device
-from hapi.datasets.folder import ImageFolder
-from hapi.vision.transforms import BatchCompose
+from paddle.incubate.hapi.model import Input, set_device
+from paddle.incubate.hapi.datasets.folder import ImageFolder
+from paddle.incubate.hapi.vision.transforms import BatchCompose
 
 from utility import add_arguments, print_arguments
 from utility import postprocess, index2word

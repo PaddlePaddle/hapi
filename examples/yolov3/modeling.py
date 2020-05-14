@@ -23,7 +23,7 @@ from paddle.fluid.regularizer import L2Decay
 from hapi.model import Model
 from hapi.loss import Loss
 from hapi.download import get_weights_path_from_url
-from hapi.vision.models import darknet53
+from darknet import darknet53
 
 __all__ = ['YoloLoss', 'YOLOv3', 'yolov3_darknet53']
 
