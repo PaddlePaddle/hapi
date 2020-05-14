@@ -19,8 +19,8 @@ import os
 import argparse
 import numpy as np
 
-from hapi.model import Input, set_device
-from hapi.vision.transforms import Compose
+from paddle.incubate.hapi.model import Input, set_device
+from paddle.incubate.hapi.vision.transforms import Compose
 
 from check import check_gpu, check_version
 from modeling import tsm_resnet50
@@ -36,18 +36,16 @@ def main():
     device = set_device(FLAGS.device)
     fluid.enable_dygraph(device) if FLAGS.dynamic else None
 
-    transform = Compose([GroupScale(),
-                         GroupCenterCrop(),
-                         NormalizeImage()])
+    transform = Compose([GroupScale(), GroupCenterCrop(), NormalizeImage()])
     dataset = KineticsDataset(
-            pickle_file=FLAGS.infer_file,
-            label_list=FLAGS.label_list,
-            mode='test',
-            transform=transform)
+        pickle_file=FLAGS.infer_file,
+        label_list=FLAGS.label_list,
+        mode='test',
+        transform=transform)
     labels = dataset.label_list
 
-    model = tsm_resnet50(num_classes=len(labels),
-                         pretrained=FLAGS.weights is None)
+    model = tsm_resnet50(
+        num_classes=len(labels), pretrained=FLAGS.weights is None)
 
     inputs = [Input([None, 8, 3, 224, 224], 'float32', name='image')]
 
@@ -66,19 +64,23 @@ def main():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("CNN training on TSM")
     parser.add_argument(
-        "--data", type=str, default='dataset/kinetics',
+        "--data",
+        type=str,
+        default='dataset/kinetics',
         help="path to dataset root directory")
     parser.add_argument(
-        "--device", type=str, default='gpu',
-        help="device to use, gpu or cpu")
+        "--device", type=str, default='gpu', help="device to use, gpu or cpu")
     parser.add_argument(
-        "-d", "--dynamic", action='store_true',
-        help="enable dygraph mode")
+        "-d", "--dynamic", action='store_true', help="enable dygraph mode")
     parser.add_argument(
-        "--label_list", type=str, default=None,
+        "--label_list",
+        type=str,
+        default=None,
         help="path to category index label list file")
     parser.add_argument(
-        "--infer_file", type=str, default=None,
+        "--infer_file",
+        type=str,
+        default=None,
         help="path to pickle file for inference")
     parser.add_argument(
         "-w",

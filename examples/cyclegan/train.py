@@ -24,7 +24,7 @@ import time
 
 import paddle
 import paddle.fluid as fluid
-from hapi.model import Model, Input, set_device
+from paddle.incubate.hapi.model import Model, Input, set_device
 
 from check import check_gpu, check_version
 from cyclegan import Generator, Discriminator, GeneratorCombine, GLoss, DLoss
@@ -78,12 +78,12 @@ def main():
     g_AB.prepare(inputs=[input_A], device=FLAGS.device)
     g_BA.prepare(inputs=[input_B], device=FLAGS.device)
 
-    g.prepare(g_optimizer, GLoss(), inputs=[input_A, input_B],
-        device=FLAGS.device)
-    d_A.prepare(da_optimizer, DLoss(), inputs=[input_B, fake_B],
-        device=FLAGS.device)
-    d_B.prepare(db_optimizer, DLoss(), inputs=[input_A, fake_A],
-        device=FLAGS.device)
+    g.prepare(
+        g_optimizer, GLoss(), inputs=[input_A, input_B], device=FLAGS.device)
+    d_A.prepare(
+        da_optimizer, DLoss(), inputs=[input_B, fake_B], device=FLAGS.device)
+    d_B.prepare(
+        db_optimizer, DLoss(), inputs=[input_A, fake_A], device=FLAGS.device)
 
     if FLAGS.resume:
         g.load(FLAGS.resume)

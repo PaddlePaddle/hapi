@@ -18,7 +18,7 @@ import logging
 import sys
 import os
 
-from hapi.model import set_device, Input
+from paddle.incubate.hapi.model import set_device, Input
 
 from reader import BmnDataset
 from config_utils import *

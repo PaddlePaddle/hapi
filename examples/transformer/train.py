@@ -23,8 +23,8 @@ from paddle.io import DataLoader
 from utils.configure import PDConfig
 from utils.check import check_gpu, check_version
 
-from hapi.model import Input, set_device
-from hapi.callbacks import ProgBarLogger
+from paddle.incubate.hapi.model import Input, set_device
+from paddle.incubate.hapi.callbacks import ProgBarLogger
 from reader import create_data_loader
 from transformer import Transformer, CrossEntropyCriterion
 

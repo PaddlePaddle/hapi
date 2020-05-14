@@ -19,12 +19,12 @@ import argparse
 
 from paddle import fluid
 from paddle.fluid.optimizer import Momentum
-from hapi.datasets.mnist import MNIST as MnistDataset
+from paddle.incubate.hapi.datasets.mnist import MNIST as MnistDataset
 
-from hapi.model import Input, set_device
-from hapi.loss import CrossEntropy
-from hapi.metrics import Accuracy
-from hapi.vision.models import LeNet
+from paddle.incubate.hapi.model import Input, set_device
+from paddle.incubate.hapi.loss import CrossEntropy
+from paddle.incubate.hapi.metrics import Accuracy
+from paddle.incubate.hapi.vision.models import LeNet
 
 
 def main():

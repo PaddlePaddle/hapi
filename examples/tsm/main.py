@@ -22,10 +22,10 @@ import numpy as np
 from paddle import fluid
 from paddle.fluid.dygraph.parallel import ParallelEnv
 
-from hapi.model import Model, Input, set_device
-from hapi.loss import CrossEntropy
-from hapi.metrics import Accuracy
-from hapi.vision.transforms import Compose
+from paddle.incubate.hapi.model import Model, Input, set_device
+from paddle.incubate.hapi.loss import CrossEntropy
+from paddle.incubate.hapi.metrics import Accuracy
+from paddle.incubate.hapi.vision.transforms import Compose
 
 from modeling import tsm_resnet50
 from check import check_gpu, check_version

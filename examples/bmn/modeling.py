@@ -17,9 +17,9 @@ from paddle.fluid import ParamAttr
 import numpy as np
 import math
 
-from hapi.model import Model
-from hapi.loss import Loss
-from hapi.download import get_weights_path_from_url
+from paddle.incubate.hapi.model import Model
+from paddle.incubate.hapi.loss import Loss
+from paddle.incubate.hapi.download import get_weights_path_from_url
 
 __all__ = ["BMN", "BmnLoss", "bmn"]
 

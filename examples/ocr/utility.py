@@ -21,8 +21,8 @@ import numpy as np
 import paddle.fluid as fluid
 import six
 
-from hapi.metrics import Metric
-from hapi.callbacks import ProgBarLogger
+from paddle.incubate.hapi.metrics import Metric
+from paddle.incubate.hapi.callbacks import ProgBarLogger
 
 
 def print_arguments(args):

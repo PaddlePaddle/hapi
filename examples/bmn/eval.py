@@ -18,7 +18,7 @@ import sys
 import logging
 import paddle.fluid as fluid
 
-from hapi.model import set_device, Input
+from paddle.incubate.hapi.model import set_device, Input
 
 from modeling import bmn, BmnLoss
 from bmn_metric import BmnMetric

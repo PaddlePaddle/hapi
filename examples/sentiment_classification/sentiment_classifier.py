@@ -13,14 +13,13 @@
 # limitations under the License.
 """Sentiment Classification in Paddle Dygraph Mode. """
 
-
 from __future__ import print_function
 import numpy as np
 import paddle.fluid as fluid
-from hapi.model import set_device, Model, CrossEntropy, Input
-from hapi.configure import Config
-from hapi.text.senta import SentaProcessor
-from hapi.metrics import Accuracy
+from paddle.incubate.hapi.model import set_device, Model, CrossEntropy, Input
+from paddle.incubate.hapi.configure import Config
+from paddle.incubate.hapi.text.senta import SentaProcessor
+from paddle.incubate.hapi.metrics import Accuracy
 from models import CNN, BOW, GRU, BiGRU
 import json
 import os
@@ -32,11 +31,13 @@ args.Print()
 device = set_device("gpu" if args.use_cuda else "cpu")
 dev_count = fluid.core.get_cuda_device_count() if args.use_cuda else 1
 
+
 def main():
     if args.do_train:
         train()
     elif args.do_infer:
         infer()
+
 
 def train():
     fluid.enable_dygraph(device)
@@ -66,31 +67,28 @@ def train():
         epoch=args.epoch,
         shuffle=False)
     if args.model_type == 'cnn_net':
-        model = CNN( args.vocab_size, args.batch_size,
-                     args.padding_size)
+        model = CNN(args.vocab_size, args.batch_size, args.padding_size)
     elif args.model_type == 'bow_net':
-        model = BOW( args.vocab_size, args.batch_size,
-                     args.padding_size)
+        model = BOW(args.vocab_size, args.batch_size, args.padding_size)
     elif args.model_type == 'gru_net':
-        model = GRU( args.vocab_size, args.batch_size,
-                     args.padding_size)
+        model = GRU(args.vocab_size, args.batch_size, args.padding_size)
     elif args.model_type == 'bigru_net':
-        model = BiGRU( args.vocab_size, args.batch_size,
-                       args.padding_size)
-    
-    optimizer = fluid.optimizer.Adagrad(learning_rate=args.lr, parameter_list=model.parameters()) 
-    
+        model = BiGRU(args.vocab_size, args.batch_size, args.padding_size)
+
+    optimizer = fluid.optimizer.Adagrad(
+        learning_rate=args.lr, parameter_list=model.parameters())
+
     inputs = [Input([None, None], 'int64', name='doc')]
     labels = [Input([None, 1], 'int64', name='label')]
-    
+
     model.prepare(
         optimizer,
         CrossEntropy(),
-        Accuracy(topk=(1,)),
+        Accuracy(topk=(1, )),
         inputs,
         labels,
         device=device)
-    
+
     model.fit(train_data=train_data_generator,
               eval_data=eval_data_generator,
               batch_size=args.batch_size,
@@ -98,6 +96,7 @@ def train():
               save_dir=args.checkpoints,
               eval_freq=args.eval_freq,
               save_freq=args.save_freq)
+
 
 def infer():
     fluid.enable_dygraph(device)
@@ -114,38 +113,37 @@ def infer():
         epoch=1,
         shuffle=False)
     if args.model_type == 'cnn_net':
-        model_infer = CNN( args.vocab_size, args.batch_size,
-                           args.padding_size)
+        model_infer = CNN(args.vocab_size, args.batch_size, args.padding_size)
     elif args.model_type == 'bow_net':
-        model_infer = BOW( args.vocab_size, args.batch_size,
-                           args.padding_size)
+        model_infer = BOW(args.vocab_size, args.batch_size, args.padding_size)
     elif args.model_type == 'gru_net':
-        model_infer = GRU( args.vocab_size, args.batch_size,
-                           args.padding_size)
+        model_infer = GRU(args.vocab_size, args.batch_size, args.padding_size)
     elif args.model_type == 'bigru_net':
-        model_infer = BiGRU( args.vocab_size, args.batch_size,
-                             args.padding_size)
-    
+        model_infer = BiGRU(args.vocab_size, args.batch_size,
+                            args.padding_size)
+
     print('Do inferring ...... ')
     inputs = [Input([None, None], 'int64', name='doc')]
     model_infer.prepare(
-        None,
-        CrossEntropy(),
-        Accuracy(topk=(1,)),
-        inputs,
-        device=device)
+        None, CrossEntropy(), Accuracy(topk=(1, )), inputs, device=device)
     model_infer.load(args.checkpoints, reset_optimizer=True)
     preds = model_infer.predict(test_data=infer_data_generator)
     preds = np.array(preds[0]).reshape((-1, 2))
 
     if args.output_dir:
         with open(os.path.join(args.output_dir, 'predictions.json'), 'w') as w:
-            
+
             for p in range(len(preds)):
                 label = np.argmax(preds[p])
-                result = json.dumps({'index': p, 'label': label, 'probs': preds[p].tolist()})
-                w.write(result+'\n')
-        print('Predictions saved at '+os.path.join(args.output_dir, 'predictions.json'))
+                result = json.dumps({
+                    'index': p,
+                    'label': label,
+                    'probs': preds[p].tolist()
+                })
+                w.write(result + '\n')
+        print('Predictions saved at ' + os.path.join(args.output_dir,
+                                                     'predictions.json'))
+
 
 if __name__ == '__main__':
     main()

@@ -25,9 +25,9 @@ from paddle import fluid
 from paddle.fluid.optimizer import Momentum
 from paddle.io import DataLoader
 
-from hapi.model import Model, Input, set_device
-from hapi.distributed import DistributedBatchSampler
-from hapi.vision.transforms import Compose, BatchCompose
+from paddle.incubate.hapi.model import Model, Input, set_device
+from paddle.incubate.hapi.distributed import DistributedBatchSampler
+from paddle.incubate.hapi.vision.transforms import Compose, BatchCompose
 
 from modeling import yolov3_darknet53, YoloLoss
 from coco import COCODataset

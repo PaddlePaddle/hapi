@@ -21,7 +21,7 @@ import numpy as np
 import paddle.fluid as fluid
 from paddle.fluid.io import DataLoader
 
-from hapi.model import Input, set_device
+from paddle.incubate.hapi.model import Input, set_device
 from args import parse_args
 from seq2seq_base import BaseModel, CrossEntropyCriterion
 from seq2seq_attn import AttentionModel

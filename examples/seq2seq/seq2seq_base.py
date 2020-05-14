@@ -19,8 +19,8 @@ from paddle.fluid.initializer import UniformInitializer
 from paddle.fluid.dygraph import Embedding, Linear, Layer
 from paddle.fluid.layers import BeamSearchDecoder
 
-from hapi.model import Model, Loss
-from hapi.text import DynamicDecode, RNN, BasicLSTMCell, RNNCell
+from paddle.incubate.hapi.model import Model, Loss
+from paddle.incubate.hapi.text import DynamicDecode, RNN, BasicLSTMCell, RNNCell
 
 
 class CrossEntropyCriterion(Loss):
