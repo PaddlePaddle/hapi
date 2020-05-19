@@ -18,6 +18,7 @@ import paddle.fluid as fluid
 
 from paddle.incubate.hapi.metrics import Metric
 from paddle.incubate.hapi.callbacks import ProgBarLogger
+from paddle.incubate.hapi.text import BasicLSTMCell
 
 
 class TrainCallback(ProgBarLogger):
@@ -78,3 +79,21 @@ class PPL(Metric):
         self.total_loss += batch_loss * batch_size
         ppl = math.exp(self.total_loss / self.word_count)
         return ppl
+
+
+def get_model_cls(model_cls):
+    """
+    Patch for BasicLSTMCell to make `_forget_bias.stop_gradient=True`
+    Remove this workaround when BasicLSTMCell or recurrent_op is fixed.
+    """
+
+    def __lstm_patch__(self, *args, **kwargs):
+        self._raw_init(*args, **kwargs)
+        layers = self.sublayers(include_sublayers=True)
+        for layer in layers:
+            if isinstance(layer, BasicLSTMCell):
+                layer._forget_bias.stop_gradient = False
+
+    model_cls._raw_init = model_cls.__init__
+    model_cls.__init__ = __lstm_patch__
+    return model_cls

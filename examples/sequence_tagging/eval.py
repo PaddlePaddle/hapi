@@ -18,24 +18,14 @@ SequenceTagging eval structure
 from __future__ import division
 from __future__ import print_function
 
-import io
-import os
-import sys
-import math
-import argparse
-import numpy as np
-
-work_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(os.path.join(work_dir, "../"))
-
-from paddle.incubate.hapi.model import set_device, Input
-from paddle.incubate.hapi.text.sequence_tagging import SeqTagging, ChunkEval, LacLoss
-from paddle.incubate.hapi.text.sequence_tagging import LacDataset, LacDataLoader
-from paddle.incubate.hapi.text.sequence_tagging import check_gpu, check_version
-from paddle.incubate.hapi.text.sequence_tagging import PDConfig
-
 import paddle.fluid as fluid
 from paddle.fluid.layers.utils import flatten
+from paddle.incubate.hapi.model import Input, set_device
+
+from sequence_tagging import SeqTagging, LacLoss, ChunkEval
+from reader import LacDataset, LacDataLoader
+from utils.check import check_gpu, check_version
+from utils.configure import PDConfig
 
 
 def main(args):
@@ -79,5 +69,6 @@ if __name__ == '__main__':
 
     use_gpu = True if args.device == "gpu" else False
     check_gpu(use_gpu)
-    check_version()
+    # TODO: add check for 2.0.0-alpha0 if fluid.require_version support
+    # check_version()
     main(args)
