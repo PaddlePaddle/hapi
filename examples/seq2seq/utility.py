@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+import functools
 
 import paddle.fluid as fluid
 
@@ -87,6 +88,7 @@ def get_model_cls(model_cls):
     Remove this workaround when BasicLSTMCell or recurrent_op is fixed.
     """
 
+    @functools.wraps(model_cls.__init__)
     def __lstm_patch__(self, *args, **kwargs):
         self._raw_init(*args, **kwargs)
         layers = self.sublayers(include_sublayers=True)
