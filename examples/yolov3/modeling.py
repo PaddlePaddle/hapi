@@ -20,9 +20,9 @@ from paddle.fluid.dygraph.nn import Conv2D, BatchNorm
 from paddle.fluid.param_attr import ParamAttr
 from paddle.fluid.regularizer import L2Decay
 
-from hapi.model import Model
-from hapi.loss import Loss
-from hapi.download import get_weights_path_from_url
+from paddle.incubate.hapi.model import Model
+from paddle.incubate.hapi.loss import Loss
+from paddle.incubate.hapi.download import get_weights_path_from_url
 from darknet import darknet53
 
 __all__ = ['YoloLoss', 'YOLOv3', 'yolov3_darknet53']
@@ -158,10 +158,7 @@ class YOLOv3(Model):
         self.nms_posk = 100
         self.draw_thresh = 0.5
 
-        self.backbone = darknet53(
-            pretrained=(model_mode == 'train'),
-            with_pool=False,
-            num_classes=-1)
+        self.backbone = darknet53(pretrained=(model_mode == 'train'))
         self.block_outputs = []
         self.yolo_blocks = []
         self.route_blocks = []
@@ -300,7 +297,7 @@ class YoloLoss(Loss):
                 anchors=self.anchors,
                 class_num=self.num_classes,
                 ignore_thresh=self.ignore_thresh,
-                use_label_smooth=True)
+                use_label_smooth=False)
             loss = fluid.layers.reduce_mean(loss)
             losses.append(loss)
             downsample //= 2

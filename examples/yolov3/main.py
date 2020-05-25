@@ -215,7 +215,7 @@ if __name__ == '__main__':
         metavar='LR',
         help='initial learning rate')
     parser.add_argument(
-        "-b", "--batch_size", default=8, type=int, help="batch size")
+        "-b", "--batch_size", default=16, type=int, help="batch size")
     parser.add_argument(
         "-j",
         "--num_workers",
