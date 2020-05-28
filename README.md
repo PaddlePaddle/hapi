@@ -48,7 +48,7 @@ PaddleHapi具有以下特点：
 
 高层API默认采用静态图的训练方式，我们可以使用 fluid.enable_dygraph() 切换到动态图模式下运行。
 
-```
+```python
 fluid.CUDAPlace()
 # 一行代码切换动态图训练模式
 fluid.enable_dygraph(place)
@@ -72,7 +72,7 @@ model.fit(train_dataset, val_dataset, batch_size=100, epochs=1, log_freq=100, sa
 使用高层API组建网络与动态图的组网方式基本相同，唯一的区别在于，使用高层API组建网络需要继承Model这个类，而普通的动态图组网是需要继承dygraph.Layer类。
 
 高层API组网方式如下
-```
+```python
 from paddle.incubate.hapi.model import Model, Input
 from paddle.incubate.hapi.loss import CrossEntropy
 
@@ -92,7 +92,7 @@ class Mnist(Model):
 
 在开始训练前，需要定义优化器、损失函数、度量函数，准备数据等等。这些过程均可以在高层API Model类中的prepare函数中完成。
 
-```
+```python
 # 定义输入数据格式
 inputs = [Input([None, 784], 'float32', name='image')]
 labels = [Input([None, 1], 'int64', name='label')]
@@ -108,7 +108,7 @@ model.prepare(optimizer, CrossEntropy(), Accuracy(), inputs, labels, device='gpu
 
 使用高层API完成训练迭代过程时，使用一行代码即可构建双层循环程序，去控制训练的轮数和数据读取过程。
 
-```
+```python
 from paddle.incubate.hapi.datasets.mnist import MNIST as MnistDataset
 # 定义数据读取器
 train_dataset = MnistDataset(mode='train')
@@ -149,7 +149,7 @@ vision.transform。图像预处理模块transform包括一系列的图像增强�
 |  ColorJitter |  随机调整图像的亮度、饱和度、对比度、和色调|    |
 
 使用方法如下：
-```
+```python
 
 from paddle.incubate.hapi.vision.transforms import transforms
 import cv2
