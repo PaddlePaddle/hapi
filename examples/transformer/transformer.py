@@ -18,9 +18,9 @@ import numpy as np
 
 import paddle.fluid as fluid
 import paddle.fluid.layers as layers
-from paddle.fluid.dygraph import Embedding, LayerNorm, Linear, Layer, to_variable
-from paddle.fluid.dygraph.learning_rate_scheduler import LearningRateDecay
-from paddle.incubate.hapi.model import Model, CrossEntropy, Loss
+from paddle.fluid.dygraph import Embedding, LayerNorm, Linear, Layer
+from paddle.incubate.hapi.model import Model
+from paddle.incubate.hapi.loss import Loss
 from paddle.incubate.hapi.text import TransformerBeamSearchDecoder, DynamicDecode
 
 
@@ -41,31 +41,6 @@ def position_encoding_init(n_position, d_pos_vec):
     signal = np.pad(signal, [[0, 0], [0, np.mod(channels, 2)]], 'constant')
     position_enc = signal
     return position_enc.astype("float32")
-
-
-class NoamDecay(LearningRateDecay):
-    """
-    learning rate scheduler
-    """
-
-    def __init__(self,
-                 d_model,
-                 warmup_steps,
-                 static_lr=2.0,
-                 begin=1,
-                 step=1,
-                 dtype='float32'):
-        super(NoamDecay, self).__init__(begin, step, dtype)
-        self.d_model = d_model
-        self.warmup_steps = warmup_steps
-        self.static_lr = static_lr
-
-    def step(self):
-        a = self.create_lr_var(self.step_num**-0.5)
-        b = self.create_lr_var((self.warmup_steps**-1.5) * self.step_num)
-        lr_value = (self.d_model**-0.5) * layers.elementwise_min(
-            a, b) * self.static_lr
-        return lr_value
 
 
 class PrePostProcessLayer(Layer):

@@ -18,24 +18,14 @@ SequenceTagging network structure
 from __future__ import division
 from __future__ import print_function
 
-import io
-import os
-import sys
-import math
-import argparse
-import numpy as np
-
-work_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(os.path.join(work_dir, "../"))
-
-from paddle.incubate.hapi.model import Input, set_device
-from paddle.incubate.hapi.text.sequence_tagging import SeqTagging, LacLoss, ChunkEval
-from paddle.incubate.hapi.text.sequence_tagging import LacDataset, LacDataLoader
-from paddle.incubate.hapi.text.sequence_tagging import check_gpu, check_version
-from paddle.incubate.hapi.text.sequence_tagging import PDConfig
-
 import paddle.fluid as fluid
 from paddle.fluid.optimizer import AdamOptimizer
+from paddle.incubate.hapi.model import Input, set_device
+
+from sequence_tagging import SeqTagging, LacLoss, ChunkEval
+from reader import LacDataset, LacDataLoader
+from utils.check import check_gpu, check_version
+from utils.configure import PDConfig
 
 
 def main(args):
@@ -44,16 +34,14 @@ def main(args):
 
     inputs = [
         Input(
-            [None, None], 'int64', name='words'), Input(
-                [None], 'int64', name='length'), Input(
-                    [None, None], 'int64', name='target')
+            [None, None], 'int64', name='words'),
+        Input(
+            [None], 'int64', name='length'),
+        Input(
+            [None, None], 'int64', name='target'),
     ]
 
     labels = [Input([None, None], 'int64', name='labels')]
-
-    feed_list = None if args.dynamic else [
-        x.forward() for x in inputs + labels
-    ]
 
     dataset = LacDataset(args)
     train_dataset = LacDataLoader(args, place, phase="train")
@@ -95,6 +83,7 @@ if __name__ == '__main__':
 
     use_gpu = True if args.device == "gpu" else False
     check_gpu(use_gpu)
-    check_version()
+    # TODO: add check for 2.0.0-alpha0 if fluid.require_version support
+    # check_version()
 
     main(args)

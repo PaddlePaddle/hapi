@@ -26,7 +26,7 @@ from args import parse_args
 from seq2seq_base import BaseModel, CrossEntropyCriterion
 from seq2seq_attn import AttentionModel
 from reader import create_data_loader
-from utility import PPL, TrainCallback
+from utility import PPL, TrainCallback, get_model_cls
 
 
 def do_train(args):
@@ -56,7 +56,8 @@ def do_train(args):
     # def dataloader
     train_loader, eval_loader = create_data_loader(args, device)
 
-    model_maker = AttentionModel if args.attention else BaseModel
+    model_maker = get_model_cls(
+        AttentionModel) if args.attention else get_model_cls(BaseModel)
     model = model_maker(args.src_vocab_size, args.tar_vocab_size,
                         args.hidden_size, args.hidden_size, args.num_layers,
                         args.dropout)
