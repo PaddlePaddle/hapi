@@ -18,14 +18,24 @@ softmax loss
 import sys
 sys.path.append("../")
 import paddle.fluid as fluid
-from paddle.incubate.hapi.model import Loss
+from hapi.model import Loss
+'''
+class SoftmaxCrossEntropyLoss(Loss):
+    def __init__(self,conf_dict):
+        super(SoftmaxCrossEntropyLoss,self).__init__()
 
-
-class SoftmxCrossEntropyLoss(Loss):
-    def __init__(self, conf_dict):
-        super(SoftmxCrossEntropyLoss, self).__init__()
-
-    def forward(self, input, label):
-        cost = fluid.layers.cross_entropy(input=input, label=label)
-        avg_cost = fluid.layers.reduce_mean(cost)
+    def forward(self,input,label):
+        cost=fluid.layers.cross_entropy(input=input,label=label)
+        avg_cost=fluid.layers.reduce_mean(cost)
         return avg_cost
+'''
+
+
+class SoftmaxCrossEntropyLoss(Loss):
+    def __init__(self, conf_dict, average=True):
+        super(SoftmaxCrossEntropyLoss, self).__init__()
+
+    def forward(self, outputs, labels):
+        return [
+            fluid.layers.cross_entropy(o, l) for o, l in zip(outputs, labels)
+        ]

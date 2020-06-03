@@ -34,38 +34,37 @@ import config
 from utils import load_vocab, import_class, get_accuracy, ArgConfig, print_arguments
 
 from paddle.incubate.hapi.metrics import Accuracy
-from paddle.incubate.hapi.model import set_device, Model, Input, Loss, CrossEntropy
+from paddle.incubate.hapi.model import set_device, Model, Input
+from paddle.incubate.hapi.loss import Loss
+
+
+# define auc method
+def valid_and_test(pred_list, process, mode):
+    """
+    return auc and acc
+    """
+    metric = fluid.metrics.Auc(name="auc")
+    pred_list = np.vstack(pred_list)
+    if mode == "test":
+        label_list = process.get_test_label()
+    elif mode == "valid":
+        label_list = process.get_valid_label()
+    if args.task_mode == "pairwise":
+        pred_list = (pred_list + 1) / 2
+        pred_list = np.hstack((np.ones_like(pred_list) - pred_list, pred_list))
+    metric.reset()
+    metric.update(pred_list, label_list)
+    auc = metric.eval()
+    if args.compute_accuracy:
+        acc = get_accuracy(pred_list, label_list, args.task_mode, args.lamda)
+        return auc, acc
+    else:
+        return auc
 
 
 def train(conf_dict, args):
     device = set_device("cpu")
     fluid.enable_dygraph(device)
-
-    # load auc method
-    metric = fluid.metrics.Auc(name="auc")
-
-    def valid_and_test(pred_list, process, mode):
-        """
-        return auc and acc
-        """
-        pred_list = np.vstack(pred_list)
-        if mode == "test":
-            label_list = process.get_test_label()
-        elif mode == "valid":
-            label_list = process.get_valid_label()
-        if args.task_mode == "pairwise":
-            pred_list = (pred_list + 1) / 2
-            pred_list = np.hstack(
-                (np.ones_like(pred_list) - pred_list, pred_list))
-        metric.reset()
-        metric.update(pred_list, label_list)
-        auc = metric.eval()
-        if args.compute_accuracy:
-            acc = get_accuracy(pred_list, label_list, args.task_mode,
-                               args.lamda)
-            return auc, acc
-        else:
-            return auc
 
     # loading vocabulary
     vocab = load_vocab(args.vocab_path)
@@ -120,9 +119,9 @@ def train(conf_dict, args):
     if args.task_mode == "pairwise":
         inputs = [
             Input(
-                [None, 1], 'int64', name='input_left'), Input(
-                    [None, 1], 'int64', name='pos_right'), Input(
-                        [None, 1], 'int64', name='neg_right')
+                [None, args.seq_len], 'int64', name='input_left'), Input(
+                    [None, args.seq_len], 'int64', name='pos_right'), Input(
+                        [None, args.seq_len], 'int64', name='neg_right')
         ]
 
         model.prepare(
@@ -132,9 +131,11 @@ def train(conf_dict, args):
             device=device)
 
         for left, pos_right, neg_right in train_pyreader():
-            input_left = fluid.layers.reshape(left, shape=[-1, 1])
-            pos_right = fluid.layers.reshape(pos_right, shape=[-1, 1])
-            neg_right = fluid.layers.reshape(neg_right, shape=[-1, 1])
+            input_left = fluid.layers.reshape(left, shape=[-1, args.seq_len])
+            pos_right = fluid.layers.reshape(
+                pos_right, shape=[-1, args.seq_len])
+            neg_right = fluid.layers.reshape(
+                neg_right, shape=[-1, args.seq_len])
 
             final_loss = model.train_batch([input_left, pos_right, neg_right])
             print("train_steps: %d, train_loss: %f" %
@@ -144,26 +145,29 @@ def train(conf_dict, args):
 
             if args.do_valid and global_step % args.validation_steps == 0:
                 for left, pos_right, neg_right in valid_pyreader():
-                    input_left = fluid.layers.reshape(left, shape=[-1, 1])
-                    pos_right = fluid.layers.reshape(pos_right, shape=[-1, 1])
-                    neg_right = fluid.layers.reshape(neg_right, shape=[-1, 1])
+                    input_left = fluid.layers.reshape(
+                        left, shape=[-1, args.seq_len])
+                    pos_right = fluid.layers.reshape(
+                        pos_right, shape=[-1, args.seq_len])
+                    neg_right = fluid.layers.reshape(
+                        neg_right, shape=[-1, args.seq_len])
 
                     result, _ = model.test_batch(
                         [input_left, pos_right, neg_right])
-                    pred_list += list(result)
-                    valid_step += 1
+                    pred_list = list(result)
 
+                valid_step += 1
                 valid_result = valid_and_test(pred_list, simnet_process,
                                               "valid")
                 if args.compute_accuracy:
                     valid_auc, valid_acc = valid_result
                     print(
                         "valid_steps: %d, valid_auc: %f, valid_acc: %f, valid_loss: %f"
-                        % (global_step, valid_auc, valid_acc, np.mean(losses)))
+                        % (valid_step, valid_auc, valid_acc, np.mean(losses)))
                 else:
                     valid_auc = valid_result
                     print("valid_steps: %d, valid_auc: %f, valid_loss: %f" %
-                          (global_step, valid_auc, np.mean(losses)))
+                          (valid_step, valid_auc, np.mean(losses)))
 
             if global_step % args.save_steps == 0:
                 model_save_dir = os.path.join(args.output_dir,
@@ -177,20 +181,21 @@ def train(conf_dict, args):
     else:
         inputs = [
             Input(
-                [None, 1], 'int64', name='left'), Input(
-                    [None, 1], 'int64', name='right')
+                [None, args.seq_len], 'int64', name='left'), Input(
+                    [None, args.seq_len], 'int64', name='right')
         ]
         label = [Input([None, 1], 'int64', name='neg_right')]
 
         model.prepare(
             inputs=inputs,
+            labels=label,
             optimizer=optimizer,
             loss_function=loss,
             device=device)
 
         for left, right, label in train_pyreader():
-            left = fluid.layers.reshape(left, shape=[-1, 1])
-            right = fluid.layers.reshape(right, shape=[-1, 1])
+            left = fluid.layers.reshape(left, shape=[-1, args.seq_len])
+            right = fluid.layers.reshape(right, shape=[-1, args.seq_len])
             label = fluid.layers.reshape(label, shape=[-1, 1])
 
             final_loss = model.train_batch([left, right], [label])
@@ -201,26 +206,27 @@ def train(conf_dict, args):
 
             if args.do_valid and global_step % args.validation_steps == 0:
                 for left, right, label in valid_pyreader():
-                    valid_left = fluid.layers.reshape(left, shape=[-1, 1])
-                    valid_right = fluid.layers.reshape(right, shape=[-1, 1])
+                    valid_left = fluid.layers.reshape(
+                        left, shape=[-1, args.seq_len])
+                    valid_right = fluid.layers.reshape(
+                        right, shape=[-1, args.seq_len])
                     valid_label = fluid.layers.reshape(label, shape=[-1, 1])
 
-                    result, _ = model.test_batch(
-                        [valid_left, valid_right, valid_right])
+                    result = model.test_batch([valid_left, valid_right])
                     pred_list += list(result)
-                    valid_step += 1
 
+                valid_step += 1
                 valid_result = valid_and_test(pred_list, simnet_process,
                                               "valid")
                 if args.compute_accuracy:
                     valid_auc, valid_acc = valid_result
                     print(
                         "valid_steps: %d, valid_auc: %f, valid_acc: %f, valid_loss: %f"
-                        % (global_step, valid_auc, valid_acc, np.mean(losses)))
+                        % (valid_step, valid_auc, valid_acc, np.mean(losses)))
                 else:
                     valid_auc = valid_result
                     print("valid_steps: %d, valid_auc: %f, valid_loss: %f" %
-                          (global_step, valid_auc, np.mean(losses)))
+                          (valid_step, valid_auc, np.mean(losses)))
 
             if global_step % args.save_steps == 0:
                 model_save_dir = os.path.join(args.output_dir,
@@ -235,31 +241,6 @@ def train(conf_dict, args):
 def test(conf_dict, args):
     device = set_device("cpu")
     fluid.enable_dygraph(device)
-
-    metric = fluid.metrics.Auc(name="auc")
-
-    def valid_and_test(pred_list, process, mode):
-        """
-        return auc and acc
-        """
-        pred_list = np.vstack(pred_list)
-        if mode == "test":
-            label_list = process.get_test_label()
-        elif mode == "valid":
-            label_list = process.get_valid_label()
-        if args.task_mode == "pairwise":
-            pred_list = (pred_list + 1) / 2
-            pred_list = np.hstack(
-                (np.ones_like(pred_list) - pred_list, pred_list))
-        metric.reset()
-        metric.update(pred_list, label_list)
-        auc = metric.eval()
-        if args.compute_accuracy:
-            acc = get_accuracy(pred_list, label_list, args.task_mode,
-                               args.lamda)
-            return auc, acc
-        else:
-            return auc
 
     # loading vocabulary
     vocab = load_vocab(args.vocab_path)
@@ -286,17 +267,19 @@ def test(conf_dict, args):
     if args.task_mode == "pairwise":
         inputs = [
             Input(
-                [None, 1], 'int64', name='input_left'), Input(
-                    [None, 1], 'int64', name='pos_right'), Input(
-                        [None, 1], 'int64', name='pos_right')
+                [None, args.seq_len], 'int64', name='input_left'), Input(
+                    [None, args.seq_len], 'int64', name='pos_right'), Input(
+                        [None, args.seq_len], 'int64', name='pos_right')
         ]
 
         model.prepare(inputs=inputs, device=device)
 
         for left, pos_right, neg_right in test_pyreader():
-            input_left = fluid.layers.reshape(left, shape=[-1, 1])
-            pos_right = fluid.layers.reshape(pos_right, shape=[-1, 1])
-            neg_right = fluid.layers.reshape(pos_right, shape=[-1, 1])
+            input_left = fluid.layers.reshape(left, shape=[-1, args.seq_len])
+            pos_right = fluid.layers.reshape(
+                pos_right, shape=[-1, args.seq_len])
+            neg_right = fluid.layers.reshape(
+                pos_right, shape=[-1, args.seq_len])
 
             final_pred, _ = model.test_batch(
                 [input_left, pos_right, neg_right])
@@ -315,15 +298,15 @@ def test(conf_dict, args):
     else:
         inputs = [
             Input(
-                [None, 1], 'int64', name='left'), Input(
-                    [None, 1], 'int64', name='right')
+                [None, args.seq_len], 'int64', name='left'), Input(
+                    [None, args.seq_len], 'int64', name='right')
         ]
 
         model.prepare(inputs=inputs, device=device)
 
         for left, right, label in test_pyreader():
-            left = fluid.layers.reshape(left, shape=[-1, 1])
-            right = fluid.layers.reshape(right, shape=[-1, 1])
+            left = fluid.layers.reshape(left, shape=[-1, args.seq_len])
+            right = fluid.layers.reshape(right, shape=[-1, args.seq_len])
             label = fluid.layers.reshape(label, shape=[-1, 1])
 
             final_pred = model.test_batch([left, right])
@@ -368,16 +351,19 @@ def infer(conf_dict, args):
     if args.task_mode == "pairwise":
         inputs = [
             Input(
-                [None, 1], 'int64', name='input_left'), Input(
-                    [None, 1], 'int64', name='pos_right')
+                [None, args.seq_len], 'int64', name='input_left'), Input(
+                    [None, args.seq_len], 'int64', name='pos_right'), Input(
+                        [None, args.seq_len], 'int64', name='neg_right')
         ]
 
         model.prepare(inputs=inputs, device=device)
 
         for left, pos_right in infer_pyreader():
-            input_left = fluid.layers.reshape(left, shape=[-1, 1])
-            pos_right = fluid.layers.reshape(pos_right, shape=[-1, 1])
-            neg_right = fluid.layers.reshape(pos_right, shape=[-1, 1])
+            input_left = fluid.layers.reshape(left, shape=[-1, args.seq_len])
+            pos_right = fluid.layers.reshape(
+                pos_right, shape=[-1, args.seq_len])
+            neg_right = fluid.layers.reshape(
+                pos_right, shape=[-1, args.seq_len])
 
             final_pred, _ = model.test_batch(
                 [input_left, pos_right, neg_right])
@@ -388,16 +374,15 @@ def infer(conf_dict, args):
     else:
         inputs = [
             Input(
-                [None, 1], 'int64', name='left'), Input(
-                    [None, 1], 'int64', name='right')
+                [None, args.seq_len], 'int64', name='left'), Input(
+                    [None, args.seq_len], 'int64', name='right')
         ]
 
         model.prepare(inputs=inputs, device=device)
 
         for left, right in infer_pyreader():
-            left = fluid.layers.reshape(left, shape=[-1, 1])
-            right = fluid.layers.reshape(right, shape=[-1, 1])
-            # label = fluid.layers.reshape(label, shape=[-1, 1])
+            left = fluid.layers.reshape(left, shape=[-1, args.seq_len])
+            right = fluid.layers.reshape(right, shape=[-1, args.seq_len])
 
             final_pred = model.test_batch([left, right])
             print(final_pred)
@@ -405,8 +390,7 @@ def infer(conf_dict, args):
                 map(lambda item: str((item[0] + 1) / 2), final_pred))
 
     with io.open(args.infer_result_path, "w", encoding="utf8") as infer_file:
-        for _data, _pred in zip(simnet_process.get_infer_data(),
-                                int(pred_list)):
+        for _data, _pred in zip(simnet_process.get_infer_data(), pred_list):
             infer_file.write(_data + "\t" + _pred + "\n")
 
 
@@ -423,4 +407,5 @@ if __name__ == '__main__':
     elif args.do_infer:
         infer(conf_dict, args)
     else:
-        raise ValueError("one of do_train and do_infer must be True")
+        raise ValueError(
+            "one of do_train and do_test and do_infer must be True")

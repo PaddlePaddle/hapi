@@ -14,6 +14,7 @@
 """
 bow class
 """
+import numpy as np
 import paddle.fluid as fluid
 from paddle.fluid.dygraph import Linear, Layer, Embedding
 from paddle.incubate.hapi.model import Model
@@ -25,11 +26,10 @@ class BOWEncoder(Layer):
     simple BOWEncoder for simnet
     """
 
-    def __init__(self, dict_size, bow_dim, seq_len, emb_dim, padding_idx):
+    def __init__(self, dict_size, bow_dim, emb_dim, padding_idx):
         super(BOWEncoder, self).__init__()
         self.dict_size = dict_size
         self.bow_dim = bow_dim
-        self.seq_len = seq_len
         self.emb_dim = emb_dim
         self.padding_idx = padding_idx
         self.emb_layer = Embedding(
@@ -41,28 +41,20 @@ class BOWEncoder(Layer):
 
     def forward(self, input):
         emb = self.emb_layer(input)
-        emb_reshape = fluid.layers.reshape(
-            emb, shape=[-1, self.seq_len, self.bow_dim])
-        bow_emb = fluid.layers.reduce_sum(emb_reshape, dim=1)
+        bow_emb = fluid.layers.reduce_sum(emb, dim=1)
         return bow_emb
 
 
 class Pair_BOWModel(Model):
-    """
-    classify model
-    """
-
     def __init__(self, conf_dict):
         super(Pair_BOWModel, self).__init__()
         self.dict_size = conf_dict["dict_size"]
-        self.task_mode = conf_dict["task_mode"]
         self.emb_dim = conf_dict["net"]["emb_dim"]
         self.bow_dim = conf_dict["net"]["bow_dim"]
-        self.seq_len = conf_dict["seq_len"]
         self.padding_idx = None
 
-        self.emb_layer = BOWEncoder(self.dict_size, self.bow_dim, self.seq_len,
-                                    self.emb_dim, self.padding_idx)
+        self.emb_layer = BOWEncoder(self.dict_size, self.bow_dim, self.emb_dim,
+                                    self.padding_idx)
         self.bow_layer = Linear(
             input_dim=self.bow_dim, output_dim=self.bow_dim)
 
@@ -83,21 +75,15 @@ class Pair_BOWModel(Model):
 
 
 class Point_BOWModel(Model):
-    """
-    classify model
-    """
-
     def __init__(self, conf_dict):
         super(Point_BOWModel, self).__init__()
         self.dict_size = conf_dict["dict_size"]
-        self.task_mode = conf_dict["task_mode"]
         self.emb_dim = conf_dict["net"]["emb_dim"]
         self.bow_dim = conf_dict["net"]["bow_dim"]
-        self.seq_len = conf_dict["seq_len"]
         self.padding_idx = None
 
-        self.emb_layer = BOWEncoder(self.dict_size, self.bow_dim, self.seq_len,
-                                    self.emb_dim, self.padding_idx)
+        self.emb_layer = BOWEncoder(self.dict_size, self.bow_dim, self.emb_dim,
+                                    self.padding_idx)
         self.bow_layer_po = Linear(
             input_dim=self.bow_dim * 2, output_dim=self.bow_dim)
         self.softmax_layer = Linear(

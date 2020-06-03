@@ -27,7 +27,7 @@ import io
 import pickle
 import warnings
 from functools import partial
-from hapi.configure import ArgumentGroup, str2bool
+from paddle.incubate.hapi.configure import ArgumentGroup, str2bool
 """
 ******functions for file processing******
 """
@@ -183,7 +183,8 @@ class ArgConfig(object):
         run_type_g.add_arg("do_train", bool, False,
                            "Whether to perform training.")
         run_type_g.add_arg("do_valid", bool, False, "Whether to perform dev.")
-        #run_type_g.add_arg("do_test", bool, False, "Whether to perform testing.")
+        run_type_g.add_arg("do_test", bool, False,
+                           "Whether to perform testing.")
         run_type_g.add_arg("do_infer", bool, False,
                            "Whether to perform inference.")
         run_type_g.add_arg("compute_accuracy", bool, False,

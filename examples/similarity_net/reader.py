@@ -184,7 +184,7 @@ class SimNetProcessor(object):
 
                         query = self.padding_text(query)
                         title = self.padding_text(title)
-                        lebel = int(label)
+                        label = int(label)
 
                         yield [query, title, label]
             else:
@@ -246,7 +246,7 @@ class SimNetProcessor(object):
 
                 yield [query, title]
 
-    def get_infer_pairdata(self):
+    def get_infer_data(self):
         """
         get infer data
         """

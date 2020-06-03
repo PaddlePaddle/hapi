@@ -15,7 +15,7 @@ INFER_RESULT_PATH=./infer_result
 TASK_MODE='pairwise'
 CONFIG_PATH=./config/bow_pairwise.json
 
-INIT_CHECKPOINT=./model_files/bow_pairwise/200
+INIT_CHECKPOINT=./model_files/bow_pairwise/20
 
 
 
@@ -36,9 +36,9 @@ train() {
 		--config_path ${CONFIG_PATH} \
 		--vocab_path ${VOCAB_PATH} \
 		--epoch 40 \
-		--save_steps 2000 \
-		--validation_steps 200 \
-		--compute_accuracy False \
+		--save_steps 10 \
+		--validation_steps 2 \
+		--compute_accuracy True \
 		--lamda 0.958 \
 		--task_mode ${TASK_MODE}\
 		--init_checkpoint ""
@@ -49,14 +49,13 @@ evaluate() {
 		--task_name ${TASK_NAME} \
 		--use_cuda false \
 		--do_test True \
-		--verbose_result True \
 		--batch_size 128 \
 		--test_data_dir ${TEST_DATA_PATH} \
 		--test_result_path ${TEST_RESULT_PATH} \
 		--config_path ${CONFIG_PATH} \
 		--vocab_path ${VOCAB_PATH} \
 		--task_mode ${TASK_MODE} \
-		--compute_accuracy False \
+		--compute_accuracy True \
 		--lamda 0.958 \
 		--init_checkpoint ${INIT_CHECKPOINT}
 }

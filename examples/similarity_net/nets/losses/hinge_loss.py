@@ -18,7 +18,7 @@ hinge loss
 import sys
 sys.path.append("../")
 import paddle.fluid as fluid
-from paddle.incubate.hapi.model import Loss
+from paddle.incubate.hapi.loss import Loss
 
 
 class HingeLoss(Loss):
@@ -34,6 +34,6 @@ class HingeLoss(Loss):
             neg, neg.shape, "float32", self.margin)
         sub = fluid.layers.elementwise_sub(neg, pos)
         add = fluid.layers.elementwise_add(sub, loss_margin)
-        loss_max = fluid.layers.elementwise_max(loss, add)
-        loss_last = fluid.layers.reduce_mean(loss_max)
+        max = fluid.layers.elementwise_max(loss, add)
+        loss_last = fluid.layers.reduce_mean(max)
         return loss_last

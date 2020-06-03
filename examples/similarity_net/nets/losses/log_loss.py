@@ -18,7 +18,7 @@ log loss
 import sys
 sys.path.append("../")
 import paddle.fluid as fluid
-from paddle.incubate.hapi.model import Loss
+from paddle.incubate.hapi.loss import Loss
 
 
 class LogLoss(Loss):
