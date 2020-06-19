@@ -20,6 +20,7 @@ from paddle.fluid.dygraph.nn import Conv2D, Pool2D, BatchNorm, Linear
 
 from hapi.model import Model
 from hapi.download import get_weights_path_from_url
+from paddle.fluid.dygraph import declarative
 
 __all__ = ['MobileNetV2', 'mobilenet_v2']
 
@@ -106,7 +107,7 @@ class InvertedResidualUnit(fluid.dygraph.Layer):
             stride=1,
             padding=0,
             num_groups=1)
-
+    
     def forward(self, inputs, ifshortcut):
         y = self._expand_conv(inputs, if_act=True)
         y = self._bottleneck_conv(y, if_act=True)
@@ -229,6 +230,7 @@ class MobileNetV2(Model):
                 param_attr=tmp_param,
                 bias_attr=ParamAttr(name="fc10_offset"))
 
+    @declarative
     def forward(self, inputs):
         y = self._conv1(inputs, if_act=True)
         for inv in self._invl:

@@ -1119,6 +1119,8 @@ class Model(fluid.dygraph.Layer):
             eval_data=None,
             batch_size=1,
             epochs=1,
+            train_batchs=-1,
+            test_batchs=-1,
             eval_freq=1,
             log_freq=10,
             save_dir=None,
@@ -1304,7 +1306,7 @@ class Model(fluid.dygraph.Layer):
         for epoch in range(epochs):
 
             cbks.on_epoch_begin(epoch)
-            logs = self._run_one_epoch(train_loader, cbks, 'train')
+            logs = self._run_one_epoch(train_loader, cbks, 'train', train_batchs)
             cbks.on_epoch_end(epoch, logs)
 
             if do_eval and epoch % eval_freq == 0:
@@ -1315,7 +1317,7 @@ class Model(fluid.dygraph.Layer):
                     'metrics_name': self._metrics_name()
                 })
 
-                logs = self._run_one_epoch(eval_loader, cbks, 'eval')
+                logs = self._run_one_epoch(eval_loader, cbks, 'eval', test_batchs)
 
                 cbks.on_end('eval', logs)
 
@@ -1584,7 +1586,7 @@ class Model(fluid.dygraph.Layer):
             params_filename=params_filename,
             program_only=model_only)
 
-    def _run_one_epoch(self, data_loader, callbacks, mode, logs={}):
+    def _run_one_epoch(self, data_loader, callbacks, mode, batchs, logs={}):
         outputs = []
         for step, data in enumerate(data_loader):
             # data might come from different types of data_loader and have
@@ -1601,6 +1603,10 @@ class Model(fluid.dygraph.Layer):
             data = flatten(data)
             # LoDTensor.shape is callable, where LoDTensor comes from
             # DataLoader in static graph
+
+            if batchs >= 0 and step >= batchs:
+                break
+
             batch_size = data[0].shape()[0] if callable(data[
                 0].shape) else data[0].shape[0]
 
