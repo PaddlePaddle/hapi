@@ -21,8 +21,7 @@ import sys
 
 sys.path.append('../')
 
-from paddle.incubate.hapi.distributed import DistributedBatchSampler
-from paddle.io import Dataset, DataLoader
+from paddle.io import Dataset, DataLoader, DistributedBatchSampler
 
 logger = logging.getLogger(__name__)
 

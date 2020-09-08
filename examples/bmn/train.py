@@ -12,13 +12,12 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+import paddle
 import paddle.fluid as fluid
 import argparse
 import logging
 import sys
 import os
-
-from paddle.incubate.hapi.model import set_device, Input
 
 from reader import BmnDataset
 from config_utils import *
@@ -104,8 +103,8 @@ def optimizer(cfg, parameter_list):
 
 # TRAIN
 def train_bmn(args):
-    device = set_device(args.device)
-    fluid.enable_dygraph(device) if args.dynamic else None
+    device = paddle.set_device(args.device)
+    paddle.disable_static(device) if args.dynamic else None
 
     if not os.path.isdir(args.save_dir):
         os.makedirs(args.save_dir)
@@ -122,13 +121,6 @@ def train_bmn(args):
     num_sample = config.MODEL.num_sample
     num_sample_perbin = config.MODEL.num_sample_perbin
 
-    # input and label list
-    inputs = [Input([None, feat_dim, tscale], 'float32', name='feat_input')]
-    gt_iou_map = Input([None, dscale, tscale], 'float32', name='gt_iou_map')
-    gt_start = Input([None, tscale], 'float32', name='gt_start')
-    gt_end = Input([None, tscale], 'float32', name='gt_end')
-    labels = [gt_iou_map, gt_start, gt_end]
-
     # data
     train_dataset = BmnDataset(train_cfg, 'train')
     val_dataset = BmnDataset(val_cfg, 'valid')
@@ -136,17 +128,14 @@ def train_bmn(args):
     # model
     model = bmn(tscale,
                 dscale,
+                feat_dim,
                 prop_boundary_ratio,
                 num_sample,
                 num_sample_perbin,
+                mode='train',
                 pretrained=False)
     optim = optimizer(config, parameter_list=model.parameters())
-    model.prepare(
-        optimizer=optim,
-        loss_function=BmnLoss(tscale, dscale),
-        inputs=inputs,
-        labels=labels,
-        device=device)
+    model.prepare(optimizer=optim, loss=BmnLoss(tscale, dscale))
 
     # if resume weights is given, load resume weights directly
     if args.resume is not None:

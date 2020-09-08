@@ -12,14 +12,14 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+import paddle
 import paddle.fluid as fluid
 from paddle.fluid import ParamAttr
 import numpy as np
 import math
 
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.loss import Loss
-from paddle.incubate.hapi.download import get_weights_path_from_url
+from paddle.static import InputSpec
+from paddle.utils.download import get_weights_path_from_url
 
 __all__ = ["BMN", "BmnLoss", "bmn"]
 
@@ -126,7 +126,7 @@ class Conv1D(fluid.dygraph.Layer):
         return x
 
 
-class BMN(Model):
+class BMN(fluid.dygraph.Layer):
     """BMN model from
     `"BMN: Boundary-Matching Network for Temporal Action Proposal Generation" <https://arxiv.org/abs/1907.09702>`_
 
@@ -288,7 +288,7 @@ class BMN(Model):
         return xp, xs, xe
 
 
-class BmnLoss(Loss):
+class BmnLoss(fluid.dygraph.Layer):
     """Loss for BMN model
 
     Args:
@@ -415,12 +415,14 @@ class BmnLoss(Loss):
         loss = -1 * (loss_pos + loss_neg) / num_entries
         return loss
 
-    def forward(self, outputs, labels):
-        pred_bm, pred_start, pred_end = outputs
-        if len(labels) == 3:
-            gt_iou_map, gt_start, gt_end = labels
-        elif len(labels) == 4:  # video_index used in eval mode
-            gt_iou_map, gt_start, gt_end, video_index = labels
+    def forward(self,
+                pred_bm,
+                pred_start,
+                pred_end,
+                gt_iou_map,
+                gt_start,
+                gt_end,
+                video_index=None):
         pred_bm_reg = fluid.layers.squeeze(
             fluid.layers.slice(
                 pred_bm, axes=[1], starts=[0], ends=[1]),
@@ -443,9 +445,11 @@ class BmnLoss(Loss):
 
 def bmn(tscale,
         dscale,
+        feat_dim,
         prop_boundary_ratio,
         num_sample,
         num_sample_perbin,
+        mode,
         pretrained=True):
     """BMN model
     
@@ -457,8 +461,25 @@ def bmn(tscale,
         num_sample_perbin (int):  number of selected points in each sample, default 3.
         pretrained (bool): If True, returns a model with pre-trained model, default True.
     """
-    model = BMN(tscale, dscale, prop_boundary_ratio, num_sample,
-                num_sample_perbin)
+    inputs = [
+        InputSpec(
+            [None, feat_dim, tscale], 'float32', name='feat_input')
+    ]
+    gt_iou_map = InputSpec(
+        [None, dscale, tscale], 'float32', name='gt_iou_map')
+    gt_start = InputSpec([None, tscale], 'float32', name='gt_start')
+    gt_end = InputSpec([None, tscale], 'float32', name='gt_end')
+    video_idx = InputSpec([None, 1], 'int64', name='video_idx')
+    label_dict = {
+        'train': [gt_iou_map, gt_start, gt_end],
+        'test': [gt_iou_map, gt_start, gt_end, video_idx],
+        'infer': [video_idx]
+    }
+    labels = label_dict[mode]
+
+    net = BMN(tscale, dscale, prop_boundary_ratio, num_sample,
+              num_sample_perbin)
+    model = paddle.Model(net, inputs, labels)
     if pretrained:
         weight_path = get_weights_path_from_url(*(pretrain_infos['bmn']))
         assert weight_path.endswith('.pdparams'), \
