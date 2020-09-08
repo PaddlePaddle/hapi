@@ -20,7 +20,7 @@ import json
 
 sys.path.append('../')
 
-from paddle.incubate.hapi.metrics import Metric
+from paddle.metric import Metric
 from bmn_utils import boundary_choose, bmn_post_processing
 
 
@@ -47,7 +47,7 @@ class BmnMetric(Metric):
             if not os.path.isdir(self.cfg.INFER.result_path):
                 os.makedirs(self.cfg.INFER.result_path)
 
-    def add_metric_op(self, *args):
+    def compute(self, *args):
         if self.mode == 'test':
             # only extract pred_bm, pred_start, pred_en from outputs
             # and video_index from label here

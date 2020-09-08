@@ -12,13 +12,12 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+import paddle
 import argparse
 import os
 import sys
 import logging
 import paddle.fluid as fluid
-
-from paddle.incubate.hapi.model import set_device, Input
 
 from modeling import bmn, BmnLoss
 from bmn_metric import BmnMetric
@@ -78,8 +77,8 @@ def parse_args():
 
 # Performance Evaluation
 def test_bmn(args):
-    device = set_device(args.device)
-    fluid.enable_dygraph(device) if args.dynamic else None
+    device = paddle.set_device(args.device)
+    paddle.disable_static(device) if args.dynamic else None
 
     #config setting
     config = parse_config(args.config_file)
@@ -92,39 +91,22 @@ def test_bmn(args):
     num_sample = config.MODEL.num_sample
     num_sample_perbin = config.MODEL.num_sample_perbin
 
-    #input and video index
-    inputs = [
-        Input(
-            [None, config.MODEL.feat_dim, config.MODEL.tscale],
-            'float32',
-            name='feat_input')
-    ]
-    gt_iou_map = Input(
-        [None, config.MODEL.dscale, config.MODEL.tscale],
-        'float32',
-        name='gt_iou_map')
-    gt_start = Input([None, config.MODEL.tscale], 'float32', name='gt_start')
-    gt_end = Input([None, config.MODEL.tscale], 'float32', name='gt_end')
-    video_idx = Input([None, 1], 'int64', name='video_idx')
-    labels = [gt_iou_map, gt_start, gt_end, video_idx]
-
     #data
     eval_dataset = BmnDataset(eval_cfg, 'test')
 
     #model
     model = bmn(tscale,
                 dscale,
+                feat_dim,
                 prop_boundary_ratio,
                 num_sample,
                 num_sample_perbin,
+                mode='test',
                 pretrained=args.weights is None)
+
     model.prepare(
-        loss_function=BmnLoss(tscale, dscale),
-        metrics=BmnMetric(
-            config, mode='test'),
-        inputs=inputs,
-        labels=labels,
-        device=device)
+        loss=BmnLoss(tscale, dscale), metrics=BmnMetric(
+            config, mode='test'))
 
     #load checkpoint
     if args.weights is not None:

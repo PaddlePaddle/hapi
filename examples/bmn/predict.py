@@ -16,9 +16,8 @@ import argparse
 import sys
 import os
 import logging
+import paddle
 import paddle.fluid as fluid
-
-from paddle.incubate.hapi.model import set_device, Input
 
 from modeling import bmn, BmnLoss
 from bmn_metric import BmnMetric
@@ -83,8 +82,8 @@ def parse_args():
 
 # Prediction
 def infer_bmn(args):
-    device = set_device(args.device)
-    fluid.enable_dygraph(device) if args.dynamic else None
+    device = paddle.set_device(args.device)
+    paddle.disable_static(device) if args.dynamic else None
 
     #config setting
     config = parse_config(args.config_file)
@@ -97,31 +96,20 @@ def infer_bmn(args):
     num_sample = config.MODEL.num_sample
     num_sample_perbin = config.MODEL.num_sample_perbin
 
-    #input and video index
-    inputs = [
-        Input(
-            [None, config.MODEL.feat_dim, config.MODEL.tscale],
-            'float32',
-            name='feat_input')
-    ]
-    labels = [Input([None, 1], 'int64', name='video_idx')]
-
     #data
     infer_dataset = BmnDataset(infer_cfg, 'infer')
 
     #model
     model = bmn(tscale,
                 dscale,
+                feat_dim,
                 prop_boundary_ratio,
                 num_sample,
                 num_sample_perbin,
+                mode='infer',
                 pretrained=args.weights is None)
-    model.prepare(
-        metrics=BmnMetric(
-            config, mode='infer'),
-        inputs=inputs,
-        labels=labels,
-        device=device)
+
+    model.prepare(metrics=BmnMetric(config, mode='infer'))
 
     # load checkpoint
     if args.weights is not None:
