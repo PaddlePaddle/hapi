@@ -18,11 +18,12 @@ from __future__ import division
 from __future__ import print_function
 import distutils.util
 import numpy as np
-import paddle.fluid as fluid
 import six
 
-from paddle.incubate.hapi.metrics import Metric
-from paddle.incubate.hapi.callbacks import ProgBarLogger
+import paddle
+import paddle.fluid as fluid
+
+from paddle.metric import Metric
 
 
 def print_arguments(args):
@@ -72,7 +73,7 @@ class SeqAccuracy(Metric):
         self._name = 'seq_acc'
         self.reset()
 
-    def add_metric_op(self, output, label, mask, *args, **kwargs):
+    def compute(self, output, label, mask, *args, **kwargs):
         pred = fluid.layers.flatten(output, axis=2)
         score, topk = fluid.layers.topk(pred, 1)
         return topk, label, mask
@@ -102,7 +103,7 @@ class SeqAccuracy(Metric):
         return self._name
 
 
-class LoggerCallBack(ProgBarLogger):
+class LoggerCallBack(paddle.callbacks.ProgBarLogger):
     def __init__(self, log_freq=1, verbose=2, train_bs=None, eval_bs=None):
         super(LoggerCallBack, self).__init__(log_freq, verbose)
         self.train_bs = train_bs
@@ -153,7 +154,7 @@ class SeqBeamAccuracy(Metric):
         self._name = 'seq_acc'
         self.reset()
 
-    def add_metric_op(self, output, label, mask, *args, **kwargs):
+    def compute(self, output, label, mask, *args, **kwargs):
         return output, label, mask
 
     def update(self, preds, labels, masks, *args, **kwargs):

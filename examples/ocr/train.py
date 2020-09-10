@@ -21,11 +21,11 @@ import numpy as np
 import argparse
 import functools
 
-import paddle.fluid.profiler as profiler
+import paddle
 import paddle.fluid as fluid
 
-from paddle.incubate.hapi.model import Input, set_device
-from paddle.incubate.hapi.vision.transforms import BatchCompose
+from paddle.static import InputSpec as Input
+from paddle.vision.transforms import BatchCompose
 
 from utility import add_arguments, print_arguments
 from utility import SeqAccuracy, LoggerCallBack
@@ -58,14 +58,28 @@ add_arg('dynamic',           bool,  False,      "Whether to use dygraph.")
 
 
 def main(FLAGS):
-    device = set_device("gpu" if FLAGS.use_gpu else "cpu")
+    device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
     fluid.enable_dygraph(device) if FLAGS.dynamic else None
 
-    model = Seq2SeqAttModel(
-        encoder_size=FLAGS.encoder_size,
-        decoder_size=FLAGS.decoder_size,
-        emb_dim=FLAGS.embedding_dim,
-        num_classes=FLAGS.num_classes)
+    # yapf: disable
+    inputs = [
+        Input([None,1,48,384], "float32", name="pixel"),
+        Input([None, None], "int64", name="label_in"),
+    ]
+    labels = [
+        Input([None, None], "int64", name="label_out"),
+        Input([None, None], "float32", name="mask"),
+    ]
+    # yapf: enable
+
+    model = paddle.Model(
+        Seq2SeqAttModel(
+            encoder_size=FLAGS.encoder_size,
+            decoder_size=FLAGS.decoder_size,
+            emb_dim=FLAGS.embedding_dim,
+            num_classes=FLAGS.num_classes),
+        inputs,
+        labels)
 
     lr = FLAGS.lr
     if FLAGS.lr_decay_strategy == "piecewise_decay":
@@ -79,23 +93,7 @@ def main(FLAGS):
         parameter_list=model.parameters(),
         grad_clip=grad_clip)
 
-    # yapf: disable
-    inputs = [
-        Input([None,1,48,384], "float32", name="pixel"),
-        Input([None, None], "int64", name="label_in"),
-    ]
-    labels = [
-        Input([None, None], "int64", name="label_out"),
-        Input([None, None], "float32", name="mask"),
-    ]
-    # yapf: enable
-
-    model.prepare(
-        optimizer,
-        WeightCrossEntropy(),
-        SeqAccuracy(),
-        inputs=inputs,
-        labels=labels)
+    model.prepare(optimizer, WeightCrossEntropy(), SeqAccuracy())
 
     train_dataset = data.train()
     train_collate_fn = BatchCompose(

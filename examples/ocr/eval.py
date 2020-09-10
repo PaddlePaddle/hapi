@@ -16,11 +16,11 @@ from __future__ import print_function
 import argparse
 import functools
 
-import paddle.fluid.profiler as profiler
+import paddle
 import paddle.fluid as fluid
 
-from paddle.incubate.hapi.model import Input, set_device
-from paddle.incubate.hapi.vision.transforms import BatchCompose
+from paddle.static import InputSpec as Input
+from paddle.vision.transforms import BatchCompose
 
 from utility import add_arguments, print_arguments
 from utility import SeqAccuracy, LoggerCallBack, SeqBeamAccuracy
@@ -46,13 +46,8 @@ add_arg('dynamic',           bool,  False,              "Whether to use dygraph.
 
 
 def main(FLAGS):
-    device = set_device("gpu" if FLAGS.use_gpu else "cpu")
+    device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
     fluid.enable_dygraph(device) if FLAGS.dynamic else None
-    model = Seq2SeqAttModel(
-        encoder_size=FLAGS.encoder_size,
-        decoder_size=FLAGS.decoder_size,
-        emb_dim=FLAGS.embedding_dim,
-        num_classes=FLAGS.num_classes)
 
     # yapf: disable
     inputs = [
@@ -64,13 +59,16 @@ def main(FLAGS):
         Input([None, None], "float32", name="mask")
     ]
     # yapf: enable
-
-    model.prepare(
-        loss_function=WeightCrossEntropy(),
-        metrics=SeqAccuracy(),
+    model = paddle.Model(
+        Seq2SeqAttModel(
+            encoder_size=FLAGS.encoder_size,
+            decoder_size=FLAGS.decoder_size,
+            emb_dim=FLAGS.embedding_dim,
+            num_classes=FLAGS.num_classes),
         inputs=inputs,
-        labels=labels,
-        device=device)
+        labels=labels)
+
+    model.prepare(loss=WeightCrossEntropy(), metrics=SeqAccuracy())
     model.load(FLAGS.init_model)
 
     test_dataset = data.test()
@@ -97,29 +95,29 @@ def main(FLAGS):
 def beam_search(FLAGS):
     device = set_device("gpu" if FLAGS.use_gpu else "cpu")
     fluid.enable_dygraph(device) if FLAGS.dynamic else None
-    model = Seq2SeqAttInferModel(
-        encoder_size=FLAGS.encoder_size,
-        decoder_size=FLAGS.decoder_size,
-        emb_dim=FLAGS.embedding_dim,
-        num_classes=FLAGS.num_classes,
-        beam_size=FLAGS.beam_size)
 
+    # yapf: disable
     inputs = [
-        Input(
-            [None, 1, 48, 384], "float32", name="pixel"), Input(
-                [None, None], "int64", name="label_in")
+        Input([None, 1, 48, 384], "float32", name="pixel"),
+        Input([None, None], "int64", name="label_in")
     ]
     labels = [
-        Input(
-            [None, None], "int64", name="label_out"), Input(
-                [None, None], "float32", name="mask")
+        Input([None, None], "int64", name="label_out"),
+        Input([None, None], "float32", name="mask")
     ]
-    model.prepare(
-        loss_function=None,
-        metrics=SeqBeamAccuracy(),
+    # yapf: enable
+
+    model = paddle.Model(
+        Seq2SeqAttInferModel(
+            encoder_size=FLAGS.encoder_size,
+            decoder_size=FLAGS.decoder_size,
+            emb_dim=FLAGS.embedding_dim,
+            num_classes=FLAGS.num_classes,
+            beam_size=FLAGS.beam_size),
         inputs=inputs,
-        labels=labels,
-        device=device)
+        labels=labels)
+
+    model.prepare(loss_function=None, metrics=SeqBeamAccuracy())
     model.load(FLAGS.init_model)
 
     test_dataset = data.test()

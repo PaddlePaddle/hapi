@@ -22,12 +22,12 @@ import argparse
 import functools
 from PIL import Image
 
-import paddle.fluid.profiler as profiler
+import paddle
 import paddle.fluid as fluid
 
-from paddle.incubate.hapi.model import Input, set_device
-from paddle.incubate.hapi.datasets.folder import ImageFolder
-from paddle.incubate.hapi.vision.transforms import BatchCompose
+from paddle.static import InputSpec as Input
+from paddle.vision.datasets.folder import ImageFolder
+from paddle.vision.transforms import BatchCompose
 
 from utility import add_arguments, print_arguments
 from utility import postprocess, index2word
@@ -52,18 +52,20 @@ add_arg('dynamic',           bool,  False,   "Whether to use dygraph.")
 
 
 def main(FLAGS):
-    device = set_device("gpu" if FLAGS.use_gpu else "cpu")
+    device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
     fluid.enable_dygraph(device) if FLAGS.dynamic else None
-    model = Seq2SeqAttInferModel(
-        encoder_size=FLAGS.encoder_size,
-        decoder_size=FLAGS.decoder_size,
-        emb_dim=FLAGS.embedding_dim,
-        num_classes=FLAGS.num_classes,
-        beam_size=FLAGS.beam_size)
 
     inputs = [Input([None, 1, 48, 384], "float32", name="pixel"), ]
+    model = paddle.Model(
+        Seq2SeqAttInferModel(
+            encoder_size=FLAGS.encoder_size,
+            decoder_size=FLAGS.decoder_size,
+            emb_dim=FLAGS.embedding_dim,
+            num_classes=FLAGS.num_classes,
+            beam_size=FLAGS.beam_size),
+        inputs)
 
-    model.prepare(inputs=inputs, device=device)
+    model.prepare()
     model.load(FLAGS.init_model)
 
     fn = lambda p: Image.open(p).convert('L')
