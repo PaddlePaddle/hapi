@@ -19,9 +19,7 @@ import paddle.fluid as fluid
 import paddle.fluid.layers as layers
 from paddle.fluid.layers import BeamSearchDecoder
 
-from paddle.incubate.hapi.text import RNNCell, RNN, DynamicDecode
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.loss import Loss
+from paddle.text import RNNCell, RNN, DynamicDecode
 
 
 class ConvBNPool(fluid.dygraph.Layer):
@@ -249,7 +247,7 @@ class Decoder(fluid.dygraph.Layer):
         return pred
 
 
-class Seq2SeqAttModel(Model):
+class Seq2SeqAttModel(fluid.dygraph.Layer):
     def __init__(
             self,
             in_channle=1,
@@ -322,12 +320,11 @@ class Seq2SeqAttInferModel(Seq2SeqAttModel):
         return rs
 
 
-class WeightCrossEntropy(Loss):
+class WeightCrossEntropy(fluid.dygraph.Layer):
     def __init__(self):
-        super(WeightCrossEntropy, self).__init__(average=False)
+        super(WeightCrossEntropy, self).__init__()
 
-    def forward(self, outputs, labels):
-        predict, (label, mask) = outputs[0], labels
+    def forward(self, predict, label, mask):
         loss = layers.cross_entropy(predict, label=label)
         loss = layers.elementwise_mul(loss, mask, axis=0)
         loss = layers.reduce_sum(loss)
