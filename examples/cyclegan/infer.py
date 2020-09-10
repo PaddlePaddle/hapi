@@ -24,26 +24,32 @@ import argparse
 from PIL import Image
 from scipy.misc import imsave
 
+import paddle
 import paddle.fluid as fluid
-from paddle.incubate.hapi.model import Model, Input, set_device
+from paddle.static import InputSpec as Input
 
 from check import check_gpu, check_version
 from cyclegan import Generator, GeneratorCombine
 
 
 def main():
-    place = set_device(FLAGS.device)
+    place = paddle.set_device(FLAGS.device)
     fluid.enable_dygraph(place) if FLAGS.dynamic else None
-
-    # Generators
-    g_AB = Generator()
-    g_BA = Generator()
-    g = GeneratorCombine(g_AB, g_BA, is_train=False)
 
     im_shape = [-1, 3, 256, 256]
     input_A = Input(im_shape, 'float32', 'input_A')
     input_B = Input(im_shape, 'float32', 'input_B')
-    g.prepare(inputs=[input_A, input_B], device=FLAGS.device)
+
+    # Generators
+    g_AB = Generator()
+    g_BA = Generator()
+
+    g = paddle.Model(
+        GeneratorCombine(
+            g_AB, g_BA, is_train=False),
+        inputs=[input_A, input_B])
+    g.prepare()
+
     g.load(FLAGS.init_model, skip_mismatch=True, reset_optimizer=True)
 
     out_path = FLAGS.output + "/single"

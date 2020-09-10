@@ -18,9 +18,8 @@ from __future__ import print_function
 
 import numpy as np
 
+import paddle
 import paddle.fluid as fluid
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.loss import Loss
 
 from layers import ConvBN, DeConvBN
 
@@ -133,7 +132,7 @@ class NLayerDiscriminator(fluid.dygraph.Layer):
         return y
 
 
-class Generator(Model):
+class Generator(paddle.nn.Layer):
     def __init__(self, input_channel=3):
         super(Generator, self).__init__()
         self.g = ResnetGenerator(input_channel)
@@ -143,7 +142,7 @@ class Generator(Model):
         return fake
 
 
-class GeneratorCombine(Model):
+class GeneratorCombine(paddle.nn.Layer):
     def __init__(self, g_AB=None, g_BA=None, d_A=None, d_B=None,
                  is_train=True):
         super(GeneratorCombine, self).__init__()
@@ -177,16 +176,15 @@ class GeneratorCombine(Model):
         return input_A, input_B, fake_A, fake_B, cyc_A, cyc_B, idt_A, idt_B, valid_A, valid_B
 
 
-class GLoss(Loss):
+class GLoss(paddle.nn.Layer):
     def __init__(self, lambda_A=10., lambda_B=10., lambda_identity=0.5):
         super(GLoss, self).__init__()
         self.lambda_A = lambda_A
         self.lambda_B = lambda_B
         self.lambda_identity = lambda_identity
 
-    def forward(self, outputs, labels=None):
-        input_A, input_B, fake_A, fake_B, cyc_A, cyc_B, idt_A, idt_B, valid_A, valid_B = outputs
-
+    def forward(self, input_A, input_B, fake_A, fake_B, cyc_A, cyc_B, idt_A,
+                idt_B, valid_A, valid_B):
         def mse(a, b):
             return fluid.layers.reduce_mean(fluid.layers.square(a - b))
 
@@ -211,7 +209,7 @@ class GLoss(Loss):
         return loss
 
 
-class Discriminator(Model):
+class Discriminator(paddle.nn.Layer):
     def __init__(self, input_channel=3):
         super(Discriminator, self).__init__()
         self.d = NLayerDiscriminator(input_channel)
@@ -222,13 +220,11 @@ class Discriminator(Model):
         return pred_real, pred_fake
 
 
-class DLoss(Loss):
+class DLoss(paddle.nn.Layer):
     def __init__(self):
         super(DLoss, self).__init__()
 
-    def forward(self, inputs, labels=None):
-        pred_real, pred_fake = inputs
-        loss = fluid.layers.square(pred_fake) + fluid.layers.square(pred_real -
-                                                                    1.)
+    def forward(self, real, fake):
+        loss = fluid.layers.square(fake) + fluid.layers.square(real - 1.)
         loss = fluid.layers.reduce_mean(loss / 2.0)
         return loss
