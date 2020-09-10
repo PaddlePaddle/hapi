@@ -24,7 +24,7 @@ import time
 
 import paddle
 import paddle.fluid as fluid
-from paddle.incubate.hapi.model import Model, Input, set_device
+from paddle.static import InputSpec as Input
 
 from check import check_gpu, check_version
 from cyclegan import Generator, Discriminator, GeneratorCombine, GLoss, DLoss
@@ -48,18 +48,29 @@ def opt(parameters):
 
 
 def main():
-    place = set_device(FLAGS.device)
+    place = paddle.set_device(FLAGS.device)
     fluid.enable_dygraph(place) if FLAGS.dynamic else None
+
+    im_shape = [None, 3, 256, 256]
+    input_A = Input(im_shape, 'float32', 'input_A')
+    input_B = Input(im_shape, 'float32', 'input_B')
+    fake_A = Input(im_shape, 'float32', 'fake_A')
+    fake_B = Input(im_shape, 'float32', 'fake_B')
 
     # Generators
     g_AB = Generator()
     g_BA = Generator()
-
-    # Discriminators
     d_A = Discriminator()
     d_B = Discriminator()
 
-    g = GeneratorCombine(g_AB, g_BA, d_A, d_B)
+    g = paddle.Model(
+        GeneratorCombine(g_AB, g_BA, d_A, d_B), inputs=[input_A, input_B])
+    g_AB = paddle.Model(g_AB, [input_A])
+    g_BA = paddle.Model(g_BA, [input_B])
+
+    # Discriminators
+    d_A = paddle.Model(d_A, [input_B, fake_B])
+    d_B = paddle.Model(d_B, [input_A, fake_A])
 
     da_params = d_A.parameters()
     db_params = d_B.parameters()
@@ -69,21 +80,12 @@ def main():
     db_optimizer = opt(db_params)
     g_optimizer = opt(g_params)
 
-    im_shape = [None, 3, 256, 256]
-    input_A = Input(im_shape, 'float32', 'input_A')
-    input_B = Input(im_shape, 'float32', 'input_B')
-    fake_A = Input(im_shape, 'float32', 'fake_A')
-    fake_B = Input(im_shape, 'float32', 'fake_B')
+    g_AB.prepare()
+    g_BA.prepare()
 
-    g_AB.prepare(inputs=[input_A], device=FLAGS.device)
-    g_BA.prepare(inputs=[input_B], device=FLAGS.device)
-
-    g.prepare(
-        g_optimizer, GLoss(), inputs=[input_A, input_B], device=FLAGS.device)
-    d_A.prepare(
-        da_optimizer, DLoss(), inputs=[input_B, fake_B], device=FLAGS.device)
-    d_B.prepare(
-        db_optimizer, DLoss(), inputs=[input_A, fake_A], device=FLAGS.device)
+    g.prepare(g_optimizer, GLoss())
+    d_A.prepare(da_optimizer, DLoss())
+    d_B.prepare(db_optimizer, DLoss())
 
     if FLAGS.resume:
         g.load(FLAGS.resume)
