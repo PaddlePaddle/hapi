@@ -272,6 +272,7 @@ class YoloLoss(fluid.dygraph.Layer):
         downsample = 32
         losses = []
 
+        # YOLOv3 output fields is different between 'train' and 'eval' mode
         if len(inputs) == 6:
             output1, output2, output3, gt_box, gt_label, gt_score = inputs
         elif len(inputs) == 8:
