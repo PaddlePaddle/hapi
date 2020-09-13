@@ -19,8 +19,8 @@ import os
 import argparse
 import numpy as np
 
-from paddle.incubate.hapi.model import Input, set_device
-from paddle.incubate.hapi.vision.transforms import Compose
+import paddle
+from paddle.vision.transforms import Compose
 
 from check import check_gpu, check_version
 from modeling import tsm_resnet50
@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    device = set_device(FLAGS.device)
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
+    device = paddle.set_device(FLAGS.device)
+    paddle.disable_static(device) if FLAGS.dynamic else None
 
     transform = Compose([GroupScale(), GroupCenterCrop(), NormalizeImage()])
     dataset = KineticsDataset(
@@ -47,9 +47,7 @@ def main():
     model = tsm_resnet50(
         num_classes=len(labels), pretrained=FLAGS.weights is None)
 
-    inputs = [Input([None, 8, 3, 224, 224], 'float32', name='image')]
-
-    model.prepare(inputs=inputs, device=FLAGS.device)
+    model.prepare()
 
     if FLAGS.weights is not None:
         model.load(FLAGS.weights, reset_optimizer=True)
