@@ -12,14 +12,14 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+import paddle
 import paddle.fluid as fluid
 from paddle.fluid.param_attr import ParamAttr
 from paddle.fluid.regularizer import L2Decay
 
+from paddle.static import InputSpec
 from paddle.fluid.dygraph.nn import Conv2D, BatchNorm
-
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.download import get_weights_path_from_url
+from paddle.utils.download import get_weights_path_from_url
 
 __all__ = ['DarkNet', 'darknet53']
 
@@ -131,7 +131,7 @@ class LayerWarp(fluid.dygraph.Layer):
 DarkNet_cfg = {53: ([1, 2, 8, 8, 4])}
 
 
-class DarkNet(Model):
+class DarkNet(fluid.dygraph.Layer):
     """DarkNet model from
     `"YOLOv3: An Incremental Improvement" <https://arxiv.org/abs/1804.02767>`_
 
@@ -190,7 +190,8 @@ def _darknet(num_layers=53, input_channels=3, pretrained=True):
         weight_path = get_weights_path_from_url(*(pretrain_infos[num_layers]))
         assert weight_path.endswith('.pdparams'), \
                 "suffix of weight must be .pdparams"
-        model.load(weight_path[:-9])
+        weight_dict, _ = fluid.load_dygraph(weight_path[:-9])
+        model.set_dict(weight_dict)
     return model
 
 

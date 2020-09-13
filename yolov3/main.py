@@ -21,13 +21,11 @@ import os
 
 import numpy as np
 
+import paddle
 from paddle import fluid
 from paddle.fluid.optimizer import Momentum
-from paddle.io import DataLoader
-
-from paddle.incubate.hapi.model import Model, Input, set_device
-from paddle.incubate.hapi.distributed import DistributedBatchSampler
-from paddle.incubate.hapi.vision.transforms import Compose, BatchCompose
+from paddle.io import DataLoader, DistributedBatchSampler
+from paddle.vision.transforms import Compose, BatchCompose
 
 from modeling import yolov3_darknet53, YoloLoss
 from coco import COCODataset
@@ -61,22 +59,8 @@ def make_optimizer(step_per_epoch, parameter_list=None):
 
 
 def main():
-    device = set_device(FLAGS.device)
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
-
-    inputs = [
-        Input(
-            [None, 1], 'int64', name='img_id'), Input(
-                [None, 2], 'int32', name='img_shape'), Input(
-                    [None, 3, None, None], 'float32', name='image')
-    ]
-
-    labels = [
-        Input(
-            [None, NUM_MAX_BOXES, 4], 'float32', name='gt_bbox'), Input(
-                [None, NUM_MAX_BOXES], 'int32', name='gt_label'), Input(
-                    [None, NUM_MAX_BOXES], 'float32', name='gt_score')
-    ]
+    device = paddle.set_device(FLAGS.device)
+    paddle.disable_static(device) if FLAGS.dynamic else None
 
     if not FLAGS.eval_only:  # training mode
         train_transform = Compose([
@@ -129,6 +113,7 @@ def main():
     pretrained = FLAGS.eval_only and FLAGS.weights is None
     model = yolov3_darknet53(
         num_classes=dataset.num_classes,
+        num_max_boxes=NUM_MAX_BOXES,
         model_mode='eval' if FLAGS.eval_only else 'train',
         pretrained=pretrained)
 
@@ -140,11 +125,7 @@ def main():
         len(batch_sampler), parameter_list=model.parameters())
 
     model.prepare(
-        optim,
-        YoloLoss(num_classes=dataset.num_classes),
-        inputs=inputs,
-        labels=labels,
-        device=FLAGS.device)
+        optimizer=optim, loss=YoloLoss(num_classes=dataset.num_classes))
 
     # NOTE: we implement COCO metric of YOLOv3 model here, separately
     # from 'prepare' and 'fit' framework for follwing reason:
