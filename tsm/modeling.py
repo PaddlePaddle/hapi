@@ -13,12 +13,13 @@
 #limitations under the License.
 
 import math
+import paddle
 import paddle.fluid as fluid
 from paddle.fluid.layer_helper import LayerHelper
 from paddle.fluid.dygraph.nn import Conv2D, Pool2D, BatchNorm, Linear
 
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.download import get_weights_path_from_url
+from paddle.static import InputSpec
+from paddle.utils.download import get_weights_path_from_url
 
 __all__ = ["TSM_ResNet", "tsm_resnet50"]
 
@@ -112,7 +113,7 @@ class BottleneckBlock(fluid.dygraph.Layer):
         return y
 
 
-class TSM_ResNet(Model):
+class TSM_ResNet(fluid.dygraph.Layer):
     """
     TSM network with ResNet as backbone
 
@@ -193,7 +194,10 @@ class TSM_ResNet(Model):
 
 
 def _tsm_resnet(num_layers, seg_num=8, num_classes=400, pretrained=True):
-    model = TSM_ResNet(num_layers, seg_num, num_classes)
+    inputs = [InputSpec([None, 8, 3, 224, 224], 'float32', name='image')]
+    labels = [InputSpec([None, 1], 'int64', name='label')]
+    net = TSM_ResNet(num_layers, seg_num, num_classes)
+    model = paddle.Model(net, inputs, labels)
     if pretrained:
         assert num_layers in pretrain_infos.keys(), \
                 "TSM-ResNet{} do not have pretrained weights now, " \
@@ -201,6 +205,8 @@ def _tsm_resnet(num_layers, seg_num=8, num_classes=400, pretrained=True):
         weight_path = get_weights_path_from_url(*(pretrain_infos[num_layers]))
         assert weight_path.endswith('.pdparams'), \
                 "suffix of weight must be .pdparams"
+        # weight_dict, _ = fluid.load_dygraph(weight_path)
+        # model.set_dict(weight_dict)
         model.load(weight_path)
     return model
 

@@ -19,13 +19,11 @@ import os
 import argparse
 import numpy as np
 
+import paddle
 from paddle import fluid
 from paddle.fluid.dygraph.parallel import ParallelEnv
 
-from paddle.incubate.hapi.model import Model, Input, set_device
-from paddle.incubate.hapi.loss import CrossEntropy
-from paddle.incubate.hapi.metrics import Accuracy
-from paddle.incubate.hapi.vision.transforms import Compose
+from paddle.vision.transforms import Compose
 
 from modeling import tsm_resnet50
 from check import check_gpu, check_version
@@ -50,8 +48,8 @@ def make_optimizer(step_per_epoch, parameter_list=None):
 
 
 def main():
-    device = set_device(FLAGS.device)
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
+    device = paddle.set_device(FLAGS.device)
+    paddle.disable_static(device) if FLAGS.dynamic else None
 
     train_transform = Compose([
         GroupScale(), GroupMultiScaleCrop(), GroupRandomCrop(),
@@ -79,16 +77,10 @@ def main():
                          / ParallelEnv().nranks)
     optim = make_optimizer(step_per_epoch, model.parameters())
 
-    inputs = [Input([None, 8, 3, 224, 224], 'float32', name='image')]
-    labels = [Input([None, 1], 'int64', name='label')]
-
     model.prepare(
-        optim,
-        CrossEntropy(),
-        metrics=Accuracy(topk=(1, 5)),
-        inputs=inputs,
-        labels=labels,
-        device=FLAGS.device)
+        optimizer=optim,
+        loss=paddle.nn.CrossEntropyLoss(),
+        metrics=paddle.metric.Accuracy(topk=(1, 5)))
 
     if FLAGS.eval_only:
         if FLAGS.weights is not None:
