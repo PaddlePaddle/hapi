@@ -17,7 +17,7 @@ import os.path as osp
 import sys
 import tarfile
 
-from hapi.download import _download
+from paddle.utils.download import _download
 
 import logging
 logger = logging.getLogger(__name__)
