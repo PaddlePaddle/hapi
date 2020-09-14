@@ -15,14 +15,15 @@
 from __future__ import division
 from __future__ import print_function
 
+import paddle
 import paddle.fluid as fluid
 from paddle.fluid.dygraph.nn import Conv2D, BatchNorm
 from paddle.fluid.param_attr import ParamAttr
 from paddle.fluid.regularizer import L2Decay
 
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.loss import Loss
-from paddle.incubate.hapi.download import get_weights_path_from_url
+from paddle.static import InputSpec
+from paddle.utils.download import get_weights_path_from_url
+
 from darknet import darknet53
 
 __all__ = ['YoloLoss', 'YOLOv3', 'yolov3_darknet53']
@@ -125,7 +126,7 @@ class YoloDetectionBlock(fluid.dygraph.Layer):
         return route, tip
 
 
-class YOLOv3(Model):
+class YOLOv3(fluid.dygraph.Layer):
     """YOLOv3 model from
     `"YOLOv3: An Incremental Improvement" <https://arxiv.org/abs/1804.02767>`_
 
@@ -194,25 +195,13 @@ class YOLOv3(Model):
                         act='leaky_relu'))
                 self.route_blocks.append(route)
 
-    def extract_feats(self, inputs):
-        out = self.backbone.conv0(inputs)
-        out = self.backbone.downsample0(out)
-        blocks = []
-        for i, conv_block_i in enumerate(
-                self.backbone.darknet53_conv_block_list):
-            out = conv_block_i(out)
-            blocks.append(out)
-            if i < len(self.backbone.stages) - 1:
-                out = self.backbone.downsample_list[i](out)
-        return blocks[-1:-4:-1]
-
     def forward(self, img_id, img_shape, inputs):
         outputs = []
         boxes = []
         scores = []
         downsample = 32
 
-        feats = self.extract_feats(inputs)
+        feats = self.backbone(inputs)
         route = None
         for idx, feat in enumerate(feats):
             if idx > 0:
@@ -267,7 +256,7 @@ class YOLOv3(Model):
         return outputs + preds
 
 
-class YoloLoss(Loss):
+class YoloLoss(fluid.dygraph.Layer):
     def __init__(self, num_classes=80, num_max_boxes=50):
         super(YoloLoss, self).__init__()
         self.num_classes = num_classes
@@ -279,11 +268,17 @@ class YoloLoss(Loss):
         ]
         self.anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 
-    def forward(self, outputs, labels):
+    def forward(self, *inputs):
         downsample = 32
-        gt_box, gt_label, gt_score = labels
         losses = []
 
+        # YOLOv3 output fields is different between 'train' and 'eval' mode
+        if len(inputs) == 6:
+            output1, output2, output3, gt_box, gt_label, gt_score = inputs
+        elif len(inputs) == 8:
+            output1, output2, output3, img_id, bbox, gt_box, gt_label, gt_score = inputs
+
+        outputs = [output1, output2, output3]
         for idx, out in enumerate(outputs):
             if idx == 3: break  # debug
             anchor_mask = self.anchor_masks[idx]
@@ -306,9 +301,23 @@ class YoloLoss(Loss):
 
 def _yolov3_darknet(num_layers=53,
                     num_classes=80,
+                    num_max_boxes=50,
                     model_mode='train',
                     pretrained=True):
-    model = YOLOv3(num_classes, model_mode)
+    inputs = [
+        InputSpec(
+            [None, 1], 'int64', name='img_id'), InputSpec(
+                [None, 2], 'int32', name='img_shape'), InputSpec(
+                    [None, 3, None, None], 'float32', name='image')
+    ]
+    labels = [
+        InputSpec(
+            [None, num_max_boxes, 4], 'float32', name='gt_bbox'), InputSpec(
+                [None, num_max_boxes], 'int32', name='gt_label'), InputSpec(
+                    [None, num_max_boxes], 'float32', name='gt_score')
+    ]
+    net = YOLOv3(num_classes, model_mode)
+    model = paddle.Model(net, inputs, labels)
     if pretrained:
         assert num_layers in pretrain_infos.keys(), \
                 "YOLOv3-DarkNet{} do not have pretrained weights now, " \
@@ -320,11 +329,15 @@ def _yolov3_darknet(num_layers=53,
     return model
 
 
-def yolov3_darknet53(num_classes=80, model_mode='train', pretrained=True):
+def yolov3_darknet53(num_classes=80,
+                     num_max_boxes=50,
+                     model_mode='train',
+                     pretrained=True):
     """YOLOv3 model with 53-layer DarkNet as backbone
     
     Args:
         num_classes (int): class number, default 80.
+        num_classes (int): max bbox number in a image, default 50.
         model_mode (str): 'train', 'eval', 'test' mode, network structure
             will be diffrent in the output layer and data, in 'train' mode,
             no output layer append, in 'eval' and 'test', output feature
@@ -334,4 +347,5 @@ def yolov3_darknet53(num_classes=80, model_mode='train', pretrained=True):
         pretrained (bool): If True, returns a model with pre-trained model
             on COCO, default True
     """
-    return _yolov3_darknet(53, num_classes, model_mode, pretrained)
+    return _yolov3_darknet(53, num_classes, num_max_boxes, model_mode,
+                           pretrained)

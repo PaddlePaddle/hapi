@@ -20,11 +20,10 @@ import argparse
 import numpy as np
 from PIL import Image
 
+import paddle
 from paddle import fluid
 from paddle.fluid.optimizer import Momentum
 from paddle.io import DataLoader
-
-from paddle.incubate.hapi.model import Model, Input, set_device
 
 from modeling import yolov3_darknet53, YoloLoss
 from transforms import *
@@ -36,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 IMAGE_MEAN = [0.485, 0.456, 0.406]
 IMAGE_STD = [0.229, 0.224, 0.225]
+NUM_MAX_BOXES = 50
 
 
 def get_save_image_name(output_dir, image_path):
@@ -62,24 +62,18 @@ def load_labels(label_list, with_background=True):
 
 
 def main():
-    device = set_device(FLAGS.device)
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
-
-    inputs = [
-        Input(
-            [None, 1], 'int64', name='img_id'), Input(
-                [None, 2], 'int32', name='img_shape'), Input(
-                    [None, 3, None, None], 'float32', name='image')
-    ]
+    device = paddle.set_device(FLAGS.device)
+    paddle.disable_static(device) if FLAGS.dynamic else None
 
     cat2name = load_labels(FLAGS.label_list, with_background=False)
 
     model = yolov3_darknet53(
         num_classes=len(cat2name),
+        num_max_boxes=NUM_MAX_BOXES,
         model_mode='test',
         pretrained=FLAGS.weights is None)
 
-    model.prepare(inputs=inputs, device=FLAGS.device)
+    model.prepare()
 
     if FLAGS.weights is not None:
         model.load(FLAGS.weights, reset_optimizer=True)
