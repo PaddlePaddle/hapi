@@ -1,3 +1,5 @@
+**仍在开发中，待完成**
+
 0. python3.7 -m pip install leveldb
 
 1. download data: wget https://paddle-hapi.bj.bcebos.com/data/bert_data.tar.gz

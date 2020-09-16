@@ -18,10 +18,7 @@ from paddle.fluid import ParamAttr
 from paddle.fluid.initializer import UniformInitializer
 from paddle.fluid.dygraph import Embedding, Linear, Layer
 from paddle.fluid.layers import BeamSearchDecoder
-
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.loss import Loss
-from paddle.incubate.hapi.text import DynamicDecode, RNN, BasicLSTMCell, RNNCell
+from paddle.text import DynamicDecode, RNN, BasicLSTMCell, RNNCell
 
 from seq2seq_base import Encoder
 
@@ -138,7 +135,7 @@ class Decoder(Layer):
         return predict
 
 
-class AttentionModel(Model):
+class AttentionModel(Layer):
     def __init__(self,
                  src_vocab_size,
                  trg_vocab_size,

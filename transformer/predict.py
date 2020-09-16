@@ -21,11 +21,11 @@ import paddle
 import paddle.fluid as fluid
 from paddle.io import DataLoader
 from paddle.fluid.layers.utils import flatten
+from paddle.static import InputSpec as Input
 
 from utils.configure import PDConfig
 from utils.check import check_gpu, check_version
 
-from paddle.incubate.hapi.model import Input, set_device
 from reader import prepare_infer_input, Seq2SeqDataset, Seq2SeqBatchSampler
 from transformer import InferTransformer
 
@@ -48,7 +48,7 @@ def post_process_seq(seq, bos_idx, eos_idx, output_bos=False,
 
 
 def do_predict(args):
-    device = set_device("gpu" if args.use_cuda else "cpu")
+    device = paddle.set_device("gpu" if args.use_cuda else "cpu")
     fluid.enable_dygraph(device) if args.eager_run else None
 
     inputs = [
@@ -99,37 +99,39 @@ def do_predict(args):
         return_list=True)
 
     # define model
-    transformer = InferTransformer(
-        args.src_vocab_size,
-        args.trg_vocab_size,
-        args.max_length + 1,
-        args.n_layer,
-        args.n_head,
-        args.d_key,
-        args.d_value,
-        args.d_model,
-        args.d_inner_hid,
-        args.prepostprocess_dropout,
-        args.attention_dropout,
-        args.relu_dropout,
-        args.preprocess_cmd,
-        args.postprocess_cmd,
-        args.weight_sharing,
-        args.bos_idx,
-        args.eos_idx,
-        beam_size=args.beam_size,
-        max_out_len=args.max_out_len)
-    transformer.prepare(inputs=inputs, device=device)
+    model = paddle.Model(
+        InferTransformer(
+            args.src_vocab_size,
+            args.trg_vocab_size,
+            args.max_length + 1,
+            args.n_layer,
+            args.n_head,
+            args.d_key,
+            args.d_value,
+            args.d_model,
+            args.d_inner_hid,
+            args.prepostprocess_dropout,
+            args.attention_dropout,
+            args.relu_dropout,
+            args.preprocess_cmd,
+            args.postprocess_cmd,
+            args.weight_sharing,
+            args.bos_idx,
+            args.eos_idx,
+            beam_size=args.beam_size,
+            max_out_len=args.max_out_len),
+        inputs)
+    model.prepare()
 
     # load the trained model
     assert args.init_from_params, (
         "Please set init_from_params to load the infer model.")
-    transformer.load(args.init_from_params)
+    model.load(args.init_from_params)
 
     # TODO: use model.predict when support variant length
     f = open(args.output_file, "wb")
     for data in data_loader():
-        finished_seq = transformer.test_batch(inputs=flatten(data))[0]
+        finished_seq = model.test_batch(inputs=flatten(data))[0]
         finished_seq = np.transpose(finished_seq, [0, 2, 1])
         for ins in finished_seq:
             for beam_idx, beam in enumerate(ins):

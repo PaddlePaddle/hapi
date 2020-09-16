@@ -19,17 +19,16 @@ import numpy as np
 import paddle
 import paddle.fluid as fluid
 from paddle.io import DataLoader
+from paddle.static import InputSpec as Input
 
 from utils.configure import PDConfig
 from utils.check import check_gpu, check_version
 
-from paddle.incubate.hapi.model import Input, set_device
-from paddle.incubate.hapi.callbacks import ProgBarLogger
 from reader import create_data_loader
 from transformer import Transformer, CrossEntropyCriterion
 
 
-class TrainCallback(ProgBarLogger):
+class TrainCallback(paddle.callbacks.ProgBarLogger):
     def __init__(self,
                  args,
                  verbose=2,
@@ -75,7 +74,7 @@ class TrainCallback(ProgBarLogger):
 
 
 def do_train(args):
-    device = set_device("gpu" if args.use_cuda else "cpu")
+    device = paddle.set_device("gpu" if args.use_cuda else "cpu")
     fluid.enable_dygraph(device) if args.eager_run else None
 
     # set seed for CE
@@ -119,14 +118,16 @@ def do_train(args):
         eval_loader, eval_steps_fn) = create_data_loader(args, device)
 
     # define model
-    transformer = Transformer(
-        args.src_vocab_size, args.trg_vocab_size, args.max_length + 1,
-        args.n_layer, args.n_head, args.d_key, args.d_value, args.d_model,
-        args.d_inner_hid, args.prepostprocess_dropout, args.attention_dropout,
-        args.relu_dropout, args.preprocess_cmd, args.postprocess_cmd,
-        args.weight_sharing, args.bos_idx, args.eos_idx)
+    model = paddle.Model(
+        Transformer(args.src_vocab_size, args.trg_vocab_size,
+                    args.max_length + 1, args.n_layer, args.n_head, args.d_key,
+                    args.d_value, args.d_model, args.d_inner_hid,
+                    args.prepostprocess_dropout, args.attention_dropout,
+                    args.relu_dropout, args.preprocess_cmd,
+                    args.postprocess_cmd, args.weight_sharing, args.bos_idx,
+                    args.eos_idx), inputs, labels)
 
-    transformer.prepare(
+    model.prepare(
         fluid.optimizer.Adam(
             learning_rate=fluid.layers.noam_decay(
                 args.d_model,
@@ -135,32 +136,29 @@ def do_train(args):
             beta1=args.beta1,
             beta2=args.beta2,
             epsilon=float(args.eps),
-            parameter_list=transformer.parameters()),
-        CrossEntropyCriterion(args.label_smooth_eps),
-        inputs=inputs,
-        labels=labels,
-        device=device)
+            parameter_list=model.parameters()),
+        CrossEntropyCriterion(args.label_smooth_eps))
 
     ## init from some checkpoint, to resume the previous training
     if args.init_from_checkpoint:
-        transformer.load(args.init_from_checkpoint)
+        model.load(args.init_from_checkpoint)
     ## init from some pretrain models, to better solve the current task
     if args.init_from_pretrain_model:
-        transformer.load(args.init_from_pretrain_model, reset_optimizer=True)
+        model.load(args.init_from_pretrain_model, reset_optimizer=True)
 
     # model train
-    transformer.fit(train_data=train_loader,
-                    eval_data=eval_loader,
-                    epochs=args.epoch,
-                    eval_freq=1,
-                    save_freq=1,
-                    save_dir=args.save_model,
-                    callbacks=[
-                        TrainCallback(
-                            args,
-                            train_steps_fn=train_steps_fn,
-                            eval_steps_fn=eval_steps_fn)
-                    ])
+    model.fit(train_data=train_loader,
+              eval_data=eval_loader,
+              epochs=args.epoch,
+              eval_freq=1,
+              save_freq=1,
+              save_dir=args.save_model,
+              callbacks=[
+                  TrainCallback(
+                      args,
+                      train_steps_fn=train_steps_fn,
+                      eval_steps_fn=eval_steps_fn)
+              ])
 
 
 if __name__ == "__main__":

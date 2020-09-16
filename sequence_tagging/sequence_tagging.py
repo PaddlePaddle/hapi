@@ -25,17 +25,16 @@ import math
 import argparse
 import numpy as np
 
+import paddle
 import paddle.fluid as fluid
-from paddle.incubate.hapi.metrics import Metric
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.loss import Loss
-from paddle.incubate.hapi.text import SequenceTagging
+from paddle.metric import Metric
+from paddle.text import SequenceTagging
 
 from utils.check import check_gpu, check_version
 from utils.configure import PDConfig
 
 
-class SeqTagging(Model):
+class SeqTagging(fluid.dygraph.Layer):
     def __init__(self, args, vocab_size, num_labels, length=None,
                  mode="train"):
         super(SeqTagging, self).__init__()
@@ -131,13 +130,13 @@ class Chunk_eval(fluid.dygraph.Layer):
         return (num_infer_chunks, num_label_chunks, num_correct_chunks)
 
 
-class LacLoss(Loss):
+class LacLoss(fluid.dygraph.Layer):
     def __init__(self):
         super(LacLoss, self).__init__()
         pass
 
-    def forward(self, outputs, labels):
-        avg_cost = outputs[1]
+    def forward(self, *args):
+        avg_cost = args[1]
         return avg_cost
 
 
@@ -149,7 +148,7 @@ class ChunkEval(Metric):
             int(math.ceil((num_labels - 1) / 2.0)), "IOB")
         self.reset()
 
-    def add_metric_op(self, *args):
+    def compute(self, *args):
         crf_decode = args[0]
         lengths = args[2]
         label = args[3]
