@@ -16,38 +16,36 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import paddle
 
 from paddle import fluid
 from paddle.fluid.optimizer import Momentum
-from paddle.incubate.hapi.datasets.mnist import MNIST as MnistDataset
+from paddle.vision.datasets.mnist import MNIST
 
-from paddle.incubate.hapi.model import Input, set_device
-from paddle.incubate.hapi.loss import CrossEntropy
-from paddle.incubate.hapi.metrics import Accuracy
-from paddle.incubate.hapi.vision.models import LeNet
+from paddle.vision.models import LeNet
+from paddle.static import InputSpec as Input
 
 
 def main():
-    device = set_device(FLAGS.device)
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
+    device = paddle.set_device(FLAGS.device)
+    paddle.disable_static(device) if FLAGS.dynamic else None
 
-    train_dataset = MnistDataset(mode='train')
-    val_dataset = MnistDataset(mode='test')
+    train_dataset = MNIST(mode='train')
+    val_dataset = MNIST(mode='test')
 
-    inputs = [Input([None, 1, 28, 28], 'float32', name='image')]
-    labels = [Input([None, 1], 'int64', name='label')]
+    inputs = [Input(shape=[None, 1, 28, 28], dtype='float32', name='image')]
+    labels = [Input(shape=[None, 1], dtype='int64', name='label')]
 
-    model = LeNet()
+    net = LeNet()
+    model = paddle.Model(net, inputs, labels)
+
     optim = Momentum(
         learning_rate=FLAGS.lr, momentum=.9, parameter_list=model.parameters())
 
     model.prepare(
         optim,
-        CrossEntropy(),
-        Accuracy(topk=(1, 2)),
-        inputs,
-        labels,
-        device=FLAGS.device)
+        paddle.nn.CrossEntropyLoss(),
+        paddle.metric.Accuracy(topk=(1, 2)))
 
     if FLAGS.resume is not None:
         model.load(FLAGS.resume)

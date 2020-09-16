@@ -15,9 +15,9 @@
 ```python
 # tensor shape is [1, c, h, w]
 _, c, h, w = tensor.shape
-tensor = fluid.layers.reshape(tensor, [c, h * w])
+tensor = paddle.reshape(tensor, [c, h * w])
 # gram matrix with shape: [c, c]
-gram_matrix = fluid.layers.matmul(tensor, fluid.layers.transpose(tensor, [1, 0]))
+gram_matrix = paddle.matmul(tensor, paddle.transpose(tensor, [1, 0]))
 ```
 
 最终风格迁移的问题转化为优化上述的两个欧式距离的问题。这里要注意的是，我们使用一个在imagenet上预训练好的模型vgg16，并且固定参数，优化器只更新输入的生成图像的值。
@@ -32,12 +32,11 @@ gram_matrix = fluid.layers.matmul(tensor, fluid.layers.transpose(tensor, [1, 0])
 import numpy as np
 import matplotlib.pyplot as plt
 
-from paddle.incubate.hapi.model import Model, Loss
+import paddle
 
-from paddle.incubate.hapi.vision.models import vgg16
-from paddle.incubate.hapi.vision.transforms import transforms
+from paddle.vision.models import vgg16
+from paddle.vision.transforms import transforms
 from paddle import fluid
-from paddle.fluid.io import Dataset
 
 import cv2
 import copy
@@ -49,7 +48,7 @@ from .style_transfer import load_image, image_restore
 
 ```python
 # 启动动态图模式
-fluid.enable_dygraph()
+paddle.disable_static()
 ```
 
 ```python
@@ -77,22 +76,23 @@ ax2.imshow(image_restore(style))
 
 ```python
 # 定义风格迁移模型，使用在imagenet上预训练好的vgg16作为基础模型
-class StyleTransferModel(Model):
+class StyleTransferModel(paddle.nn.Layer):
     def __init__(self):
         super(StyleTransferModel, self).__init__()
         # pretrained设置为true，会自动下载imagenet上的预训练权重并加载
         vgg = vgg16(pretrained=True)
         self.base_model = vgg.features
+
         for p in self.base_model.parameters():
-            p.stop_gradient=True
+            p.stop_gradient = True
         self.layers = {
-                  '0': 'conv1_1',
-                  '3': 'conv2_1',
-                  '6': 'conv3_1',
-                  '10': 'conv4_1',
-                  '11': 'conv4_2',  ## content representation
-                  '14': 'conv5_1'
-                 }
+            '0': 'conv1_1',
+            '5': 'conv2_1',
+            '10': 'conv3_1',
+            '17': 'conv4_1',
+            '19': 'conv4_2',  ## content representation
+            '24': 'conv5_1'
+        }
 
     def forward(self, image):
         outputs = []
@@ -106,27 +106,33 @@ class StyleTransferModel(Model):
 
 ```python
 # 定义风格迁移个损失函数
-class StyleTransferLoss(Loss):
-    def __init__(self, content_loss_weight=1, style_loss_weight=1e5, style_weights=[1.0, 0.8, 0.5, 0.3, 0.1]):
+class StyleTransferLoss(paddle.nn.Layer):
+    def __init__(self,
+                 content_loss_weight=1,
+                 style_loss_weight=1e5,
+                 style_weights=[1.0, 0.8, 0.5, 0.3, 0.1]):
         super(StyleTransferLoss, self).__init__()
         self.content_loss_weight = content_loss_weight
         self.style_loss_weight = style_loss_weight
         self.style_weights = style_weights
 
-    def forward(self, outputs, labels):
+    def forward(self, *features):
+        outputs = features[:6]
+        labels = features[6:]
         content_features = labels[-1]
         style_features = labels[:-1]
 
         # 计算图像内容相似度的loss
-        content_loss = fluid.layers.mean((outputs[-2] - content_features)**2)
+        content_loss = paddle.mean((outputs[-2] - content_features)**2)
 
         # 计算风格相似度的loss
         style_loss = 0
-        style_grams = [self.gram_matrix(feat) for feat in style_features ]
+        style_grams = [self.gram_matrix(feat) for feat in style_features]
         style_weights = self.style_weights
         for i, weight in enumerate(style_weights):
             target_gram = self.gram_matrix(outputs[i])
-            layer_loss = weight * fluid.layers.mean((target_gram - style_grams[i])**2)
+            layer_loss = weight * paddle.mean((target_gram - style_grams[
+                i])**2)
             b, d, h, w = outputs[i].shape
             style_loss += layer_loss / (d * h * w)
 
@@ -135,9 +141,9 @@ class StyleTransferLoss(Loss):
 
     def gram_matrix(self, A):
         if len(A.shape) == 4:
-            batch_size, c, h, w = A.shape
-            A = fluid.layers.reshape(A, (c, h*w))
-        GA = fluid.layers.matmul(A, fluid.layers.transpose(A, [1, 0]))
+            _, c, h, w = A.shape
+            A = paddle.reshape(A, (c, h * w))
+        GA = paddle.matmul(A, paddle.transpose(A, [1, 0]))
 
         return GA
 ```
@@ -145,7 +151,8 @@ class StyleTransferLoss(Loss):
 
 ```python
 # 创建模型
-model = StyleTransferModel()
+net = StyleTransferModel()
+model = paddle.Model(net)
 ```
 
 
@@ -157,7 +164,7 @@ style_loss = StyleTransferLoss()
 
 ```python
 # 使用内容图像初始化要生成的图像
-target = Model.create_parameter(model, shape=content.shape)
+target = net.create_parameter(shape=content.shape)
 target.set_value(content.numpy())
 ```
 

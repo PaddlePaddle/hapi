@@ -15,25 +15,19 @@
 from __future__ import division
 from __future__ import print_function
 
-import argparse
-import contextlib
 import os
-
 import time
-import math
+import argparse
 import numpy as np
 
+import paddle
 import paddle.fluid as fluid
-from paddle.fluid.dygraph.parallel import ParallelEnv
-from paddle.io import BatchSampler, DataLoader
+import paddle.vision.models as models
 
-from paddle.incubate.hapi.model import Input, set_device
-from paddle.incubate.hapi.loss import CrossEntropy
-from paddle.incubate.hapi.distributed import DistributedBatchSampler
-from paddle.incubate.hapi.metrics import Accuracy
-import paddle.incubate.hapi.vision.models as models
-
+from paddle.static import InputSpec as Input
 from imagenet_dataset import ImageNetDataset
+from paddle.distributed import ParallelEnv
+from paddle.io import BatchSampler, DataLoader, DistributedBatchSampler
 
 
 def make_optimizer(step_per_epoch, parameter_list=None):
@@ -72,20 +66,22 @@ def make_optimizer(step_per_epoch, parameter_list=None):
 
 
 def main():
-    device = set_device(FLAGS.device)
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
+    device = paddle.set_device(FLAGS.device)
+    paddle.disable_static(device) if FLAGS.dynamic else None
 
     model_list = [x for x in models.__dict__["__all__"]]
     assert FLAGS.arch in model_list, "Expected FLAGS.arch in {}, but received {}".format(
         model_list, FLAGS.arch)
-    model = models.__dict__[FLAGS.arch](pretrained=FLAGS.eval_only and
-                                        not FLAGS.resume)
-
-    if FLAGS.resume is not None:
-        model.load(FLAGS.resume)
+    net = models.__dict__[FLAGS.arch](pretrained=FLAGS.eval_only and
+                                      not FLAGS.resume)
 
     inputs = [Input([None, 3, 224, 224], 'float32', name='image')]
     labels = [Input([None, 1], 'int64', name='label')]
+
+    model = paddle.Model(net, inputs, labels)
+
+    if FLAGS.resume is not None:
+        model.load(FLAGS.resume)
 
     train_dataset = ImageNetDataset(
         os.path.join(FLAGS.data, 'train'),
@@ -106,11 +102,8 @@ def main():
 
     model.prepare(
         optim,
-        CrossEntropy(),
-        Accuracy(topk=(1, 5)),
-        inputs,
-        labels,
-        FLAGS.device)
+        paddle.nn.CrossEntropyLoss(),
+        paddle.metric.Accuracy(topk=(1, 5)))
 
     if FLAGS.eval_only:
         model.evaluate(
