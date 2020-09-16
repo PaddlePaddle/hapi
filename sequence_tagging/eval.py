@@ -18,9 +18,10 @@ SequenceTagging eval structure
 from __future__ import division
 from __future__ import print_function
 
+import paddle
 import paddle.fluid as fluid
 from paddle.fluid.layers.utils import flatten
-from paddle.incubate.hapi.model import Input, set_device
+from paddle.static import InputSpec as Input
 
 from sequence_tagging import SeqTagging, LacLoss, ChunkEval
 from reader import LacDataset, LacDataLoader
@@ -29,7 +30,7 @@ from utils.configure import PDConfig
 
 
 def main(args):
-    place = set_device(args.device)
+    place = paddle.set_device(args.device)
     fluid.enable_dygraph(place) if args.dynamic else None
 
     inputs = [
@@ -45,14 +46,14 @@ def main(args):
 
     vocab_size = dataset.vocab_size
     num_labels = dataset.num_labels
-    model = SeqTagging(args, vocab_size, num_labels, mode="test")
+    model = paddle.Model(
+        SeqTagging(
+            args, vocab_size, num_labels, mode="test"),
+        inputs=inputs,
+        labels=labels)
 
     model.mode = "test"
-    model.prepare(
-        metrics=ChunkEval(num_labels),
-        inputs=inputs,
-        labels=labels,
-        device=place)
+    model.prepare(metrics=ChunkEval(num_labels))
     model.load(args.init_from_checkpoint, skip_mismatch=True)
 
     eval_result = model.evaluate(

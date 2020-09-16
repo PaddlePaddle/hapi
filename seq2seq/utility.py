@@ -15,14 +15,13 @@
 import math
 import functools
 
+import paddle
 import paddle.fluid as fluid
-
-from paddle.incubate.hapi.metrics import Metric
-from paddle.incubate.hapi.callbacks import ProgBarLogger
-from paddle.incubate.hapi.text import BasicLSTMCell
+from paddle.metric import Metric
+from paddle.text import BasicLSTMCell
 
 
-class TrainCallback(ProgBarLogger):
+class TrainCallback(paddle.callbacks.ProgBarLogger):
     def __init__(self, ppl, log_freq, verbose=2):
         super(TrainCallback, self).__init__(log_freq, verbose)
         self.ppl = ppl
@@ -58,7 +57,7 @@ class PPL(Metric):
         self.reset_freq = reset_freq
         self.reset()
 
-    def add_metric_op(self, pred, seq_length, label):
+    def compute(self, pred, seq_length, label):
         word_num = fluid.layers.reduce_sum(seq_length)
         return word_num
 

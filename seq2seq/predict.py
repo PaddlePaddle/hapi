@@ -19,11 +19,12 @@ import random
 from functools import partial
 
 import numpy as np
+import paddle
 import paddle.fluid as fluid
 from paddle.fluid.layers.utils import flatten
 from paddle.fluid.io import DataLoader
+from paddle.static import InputSpec as Input
 
-from paddle.incubate.hapi.model import Input, set_device
 from args import parse_args
 from seq2seq_base import BaseInferModel
 from seq2seq_attn import AttentionInferModel
@@ -48,7 +49,7 @@ def post_process_seq(seq, bos_idx, eos_idx, output_bos=False,
 
 
 def do_predict(args):
-    device = set_device("gpu" if args.use_gpu else "cpu")
+    device = paddle.set_device("gpu" if args.use_gpu else "cpu")
     fluid.enable_dygraph(device) if args.eager_run else None
 
     # define model
@@ -84,19 +85,21 @@ def do_predict(args):
         return_list=True)
 
     model_maker = AttentionInferModel if args.attention else BaseInferModel
-    model = model_maker(
-        args.src_vocab_size,
-        args.tar_vocab_size,
-        args.hidden_size,
-        args.hidden_size,
-        args.num_layers,
-        args.dropout,
-        bos_id=bos_id,
-        eos_id=eos_id,
-        beam_size=args.beam_size,
-        max_out_len=256)
+    model = paddle.Model(
+        model_maker(
+            args.src_vocab_size,
+            args.tar_vocab_size,
+            args.hidden_size,
+            args.hidden_size,
+            args.num_layers,
+            args.dropout,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            beam_size=args.beam_size,
+            max_out_len=256),
+        inputs=inputs)
 
-    model.prepare(inputs=inputs, device=device)
+    model.prepare()
 
     # load the trained model
     assert args.reload_model, (

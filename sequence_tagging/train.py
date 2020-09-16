@@ -18,9 +18,10 @@ SequenceTagging network structure
 from __future__ import division
 from __future__ import print_function
 
+import paddle
 import paddle.fluid as fluid
 from paddle.fluid.optimizer import AdamOptimizer
-from paddle.incubate.hapi.model import Input, set_device
+from paddle.static import InputSpec as Input
 
 from sequence_tagging import SeqTagging, LacLoss, ChunkEval
 from reader import LacDataset, LacDataLoader
@@ -29,7 +30,7 @@ from utils.configure import PDConfig
 
 
 def main(args):
-    place = set_device(args.device)
+    place = paddle.set_device(args.device)
     fluid.enable_dygraph(place) if args.dynamic else None
 
     inputs = [
@@ -48,19 +49,17 @@ def main(args):
 
     vocab_size = dataset.vocab_size
     num_labels = dataset.num_labels
-    model = SeqTagging(args, vocab_size, num_labels, mode="train")
+    model = paddle.Model(
+        SeqTagging(
+            args, vocab_size, num_labels, mode="train"),
+        inputs=inputs,
+        labels=labels)
 
     optim = AdamOptimizer(
         learning_rate=args.base_learning_rate,
         parameter_list=model.parameters())
 
-    model.prepare(
-        optim,
-        LacLoss(),
-        ChunkEval(num_labels),
-        inputs=inputs,
-        labels=labels,
-        device=args.device)
+    model.prepare(optim, LacLoss(), ChunkEval(num_labels))
 
     if args.init_from_checkpoint:
         model.load(args.init_from_checkpoint)

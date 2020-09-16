@@ -18,18 +18,14 @@ from paddle.fluid import ParamAttr
 from paddle.fluid.initializer import UniformInitializer
 from paddle.fluid.dygraph import Embedding, Linear, Layer
 from paddle.fluid.layers import BeamSearchDecoder
-
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.loss import Loss
-from paddle.incubate.hapi.text import DynamicDecode, RNN, BasicLSTMCell, RNNCell
+from paddle.text import DynamicDecode, RNN, BasicLSTMCell, RNNCell
 
 
-class CrossEntropyCriterion(Loss):
+class CrossEntropyCriterion(Layer):
     def __init__(self):
         super(CrossEntropyCriterion, self).__init__()
 
-    def forward(self, outputs, labels):
-        predict, (trg_length, label) = outputs[0], labels
+    def forward(self, predict, trg_length, label):
         # for target padding mask
         mask = layers.sequence_mask(
             trg_length, maxlen=layers.shape(predict)[1], dtype=predict.dtype)
@@ -140,7 +136,7 @@ class Decoder(Layer):
         return predict
 
 
-class BaseModel(Model):
+class BaseModel(Layer):
     def __init__(self,
                  src_vocab_size,
                  trg_vocab_size,

@@ -19,9 +19,7 @@ import numpy as np
 import paddle.fluid as fluid
 import paddle.fluid.layers as layers
 from paddle.fluid.dygraph import Embedding, LayerNorm, Linear, Layer
-from paddle.incubate.hapi.model import Model
-from paddle.incubate.hapi.loss import Loss
-from paddle.incubate.hapi.text import TransformerBeamSearchDecoder, DynamicDecode
+from paddle.text import TransformerBeamSearchDecoder, DynamicDecode
 
 
 def position_encoding_init(n_position, d_pos_vec):
@@ -498,13 +496,12 @@ class WrapDecoder(Layer):
         return logits
 
 
-class CrossEntropyCriterion(Loss):
+class CrossEntropyCriterion(Layer):
     def __init__(self, label_smooth_eps):
         super(CrossEntropyCriterion, self).__init__()
         self.label_smooth_eps = label_smooth_eps
 
-    def forward(self, outputs, labels):
-        predict, (label, weights) = outputs[0], labels
+    def forward(self, predict, label, weights):
         if self.label_smooth_eps:
             label = layers.label_smooth(
                 label=layers.one_hot(
@@ -523,7 +520,7 @@ class CrossEntropyCriterion(Loss):
         return avg_cost
 
 
-class Transformer(Model):
+class Transformer(Layer):
     """
     model
     """

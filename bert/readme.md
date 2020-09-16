@@ -1,3 +1,5 @@
+**仍在开发中，待完成**
+
 1. download data: wget https://paddle-hapi.bj.bcebos.com/data/bert_data.tar.gz
 
 2. unzip data: tar -zvxf bert_data.tar.gz
