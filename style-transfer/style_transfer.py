@@ -3,12 +3,11 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
-from paddle.incubate.hapi.model import Model, Loss
+import paddle
 
-from paddle.incubate.hapi.vision.models import vgg16
-from paddle.incubate.hapi.vision.transforms import transforms
+from paddle.vision.models import vgg16
+from paddle.vision.transforms import transforms
 from paddle import fluid
-from paddle.fluid.io import Dataset
 
 import cv2
 import copy
@@ -25,7 +24,7 @@ def load_image(image_path, max_size=400, shape=None):
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     image = transform(image)[np.newaxis, :3, :, :]
-    image = fluid.dygraph.to_variable(image)
+    image = paddle.to_tensor(image)
     return image
 
 
@@ -39,21 +38,22 @@ def image_restore(image):
     return image
 
 
-class StyleTransferModel(Model):
+class StyleTransferModel(paddle.nn.Layer):
     def __init__(self):
         super(StyleTransferModel, self).__init__()
         # pretrained设置为true，会自动下载imagenet上的预训练权重并加载
         vgg = vgg16(pretrained=True)
         self.base_model = vgg.features
+
         for p in self.base_model.parameters():
             p.stop_gradient = True
         self.layers = {
             '0': 'conv1_1',
-            '3': 'conv2_1',
-            '6': 'conv3_1',
-            '10': 'conv4_1',
-            '11': 'conv4_2',  ## content representation
-            '14': 'conv5_1'
+            '5': 'conv2_1',
+            '10': 'conv3_1',
+            '17': 'conv4_1',
+            '19': 'conv4_2',  ## content representation
+            '24': 'conv5_1'
         }
 
     def forward(self, image):
@@ -65,7 +65,7 @@ class StyleTransferModel(Model):
         return outputs
 
 
-class StyleTransferLoss(Loss):
+class StyleTransferLoss(paddle.nn.Layer):
     def __init__(self,
                  content_loss_weight=1,
                  style_loss_weight=1e5,
@@ -75,12 +75,14 @@ class StyleTransferLoss(Loss):
         self.style_loss_weight = style_loss_weight
         self.style_weights = style_weights
 
-    def forward(self, outputs, labels):
+    def forward(self, *features):
+        outputs = features[:6]
+        labels = features[6:]
         content_features = labels[-1]
         style_features = labels[:-1]
 
         # 计算图像内容相似度的loss
-        content_loss = fluid.layers.mean((outputs[-2] - content_features)**2)
+        content_loss = paddle.mean((outputs[-2] - content_features)**2)
 
         # 计算风格相似度的loss
         style_loss = 0
@@ -88,8 +90,8 @@ class StyleTransferLoss(Loss):
         style_weights = self.style_weights
         for i, weight in enumerate(style_weights):
             target_gram = self.gram_matrix(outputs[i])
-            layer_loss = weight * fluid.layers.mean((target_gram - style_grams[
-                i])**2)
+            layer_loss = weight * paddle.mean((target_gram - style_grams[i])**
+                                              2)
             b, d, h, w = outputs[i].shape
             style_loss += layer_loss / (d * h * w)
 
@@ -99,24 +101,26 @@ class StyleTransferLoss(Loss):
     def gram_matrix(self, A):
         if len(A.shape) == 4:
             _, c, h, w = A.shape
-            A = fluid.layers.reshape(A, (c, h * w))
-        GA = fluid.layers.matmul(A, fluid.layers.transpose(A, [1, 0]))
+            A = paddle.reshape(A, (c, h * w))
+        GA = paddle.matmul(A, paddle.transpose(A, [1, 0]))
 
         return GA
 
 
 def main():
     # 启动动态图模式
-    fluid.enable_dygraph()
+    paddle.disable_static()
 
     content = load_image(FLAGS.content_image)
     style = load_image(FLAGS.style_image, shape=tuple(content.shape[-2:]))
 
-    model = StyleTransferModel()
+    net = StyleTransferModel()
+    model = paddle.Model(net)
+
     style_loss = StyleTransferLoss()
 
     # 使用内容图像初始化要生成的图像
-    target = Model.create_parameter(model, shape=content.shape)
+    target = net.create_parameter(shape=content.shape)
     target.set_value(content.numpy())
 
     optimizer = fluid.optimizer.Adam(
