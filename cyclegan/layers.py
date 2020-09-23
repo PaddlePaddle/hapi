@@ -13,53 +13,50 @@
 # limitations under the License.
 
 from __future__ import division
-import paddle.fluid as fluid
-from paddle.fluid.dygraph.nn import Conv2D, Conv2DTranspose, BatchNorm
 
-# cudnn is not better when batch size is 1.
-use_cudnn = False
-import numpy as np
+import paddle
+import paddle.nn as nn
+import paddle.nn.functional as F
+from paddle.nn import Layer, Conv2d, BatchNorm2d, ConvTranspose2d
 
 
-class ConvBN(fluid.dygraph.Layer):
-    """docstring for Conv2D"""
+class ConvBN(Layer):
+    """docstring for Conv2d"""
 
-    def __init__(self,
-                 num_channels,
-                 num_filters,
-                 filter_size,
-                 stride=1,
-                 padding=0,
-                 stddev=0.02,
-                 norm=True,
-                 is_test=False,
-                 act='leaky_relu',
-                 relufactor=0.0,
-                 use_bias=False):
+    def __init__(
+            self,
+            num_channels,
+            num_filters,
+            filter_size,
+            stride=1,
+            padding=0,
+            stddev=0.02,
+            norm=True,
+            #is_test=False,
+            act='leaky_relu',
+            relufactor=0.0,
+            use_bias=False):
         super(ConvBN, self).__init__()
 
-        pattr = fluid.ParamAttr(
-            initializer=fluid.initializer.NormalInitializer(
-                loc=0.0, scale=stddev))
-        self.conv = Conv2D(
-            num_channels=num_channels,
-            num_filters=num_filters,
-            filter_size=filter_size,
+        pattr = paddle.ParamAttr(initializer=nn.initializer.Normal(
+            loc=0.0, scale=stddev))
+        self.conv = Conv2d(
+            in_channels=num_channels,
+            out_channels=num_filters,
+            kernel_size=filter_size,
             stride=stride,
             padding=padding,
-            use_cudnn=use_cudnn,
-            param_attr=pattr,
+            weight_attr=pattr,
             bias_attr=use_bias)
         if norm:
-            self.bn = BatchNorm(
+            self.bn = BatchNorm2d(
                 num_filters,
-                param_attr=fluid.ParamAttr(
-                    initializer=fluid.initializer.NormalInitializer(1.0,
-                                                                    0.02)),
-                bias_attr=fluid.ParamAttr(
-                    initializer=fluid.initializer.Constant(0.0)),
-                is_test=False,
-                trainable_statistics=True)
+                weight_attr=paddle.ParamAttr(
+                    initializer=nn.initializer.Normal(1.0, 0.02)),
+                bias_attr=paddle.ParamAttr(
+                    initializer=nn.initializer.Constant(0.0)),
+                #is_test=False,
+                track_running_stats=True)
         self.relufactor = relufactor
         self.norm = norm
         self.act = act
@@ -70,52 +67,51 @@ class ConvBN(fluid.dygraph.Layer):
             conv = self.bn(conv)
 
         if self.act == 'leaky_relu':
-            conv = fluid.layers.leaky_relu(conv, alpha=self.relufactor)
+            conv = F.leaky_relu(conv, self.relufactor)
         elif self.act == 'relu':
-            conv = fluid.layers.relu(conv)
+            conv = F.relu(conv)
         else:
             conv = conv
 
         return conv
 
 
-class DeConvBN(fluid.dygraph.Layer):
-    def __init__(self,
-                 num_channels,
-                 num_filters,
-                 filter_size,
-                 stride=1,
-                 padding=[0, 0],
-                 outpadding=[0, 0, 0, 0],
-                 stddev=0.02,
-                 act='leaky_relu',
-                 norm=True,
-                 is_test=False,
-                 relufactor=0.0,
-                 use_bias=False):
-        super(DeConvBN, self).__init__()
-
-        pattr = fluid.ParamAttr(
-            initializer=fluid.initializer.NormalInitializer(
-                loc=0.0, scale=stddev))
-        self._deconv = Conv2DTranspose(
+class DeConvBN(Layer):
+    def __init__(
+            self,
             num_channels,
             num_filters,
-            filter_size=filter_size,
+            filter_size,
+            stride=1,
+            padding=[0, 0],
+            outpadding=[0, 0, 0, 0],
+            stddev=0.02,
+            act='leaky_relu',
+            norm=True,
+            #is_test=False,
+            relufactor=0.0,
+            use_bias=False):
+        super(DeConvBN, self).__init__()
+
+        pattr = paddle.ParamAttr(initializer=nn.initializer.Normal(
+            loc=0.0, scale=stddev))
+        self._deconv = ConvTranspose2d(
+            num_channels,
+            num_filters,
+            kernel_size=filter_size,
             stride=stride,
             padding=padding,
-            param_attr=pattr,
+            weight_attr=pattr,
             bias_attr=use_bias)
         if norm:
-            self.bn = BatchNorm(
+            self.bn = BatchNorm2d(
                 num_filters,
-                param_attr=fluid.ParamAttr(
-                    initializer=fluid.initializer.NormalInitializer(1.0,
-                                                                    0.02)),
-                bias_attr=fluid.ParamAttr(
-                    initializer=fluid.initializer.Constant(0.0)),
-                is_test=False,
-                trainable_statistics=True)
+                weight_attr=paddle.ParamAttr(
+                    initializer=nn.initializer.Normal(1.0, 0.02)),
+                bias_attr=paddle.ParamAttr(
+                    initializer=nn.initializer.Constant(0.0)),
+                #is_test=False,
+                track_running_stats=True)
         self.outpadding = outpadding
         self.relufactor = relufactor
         self.use_bias = use_bias
@@ -124,16 +120,16 @@ class DeConvBN(fluid.dygraph.Layer):
 
     def forward(self, inputs):
         conv = self._deconv(inputs)
-        conv = fluid.layers.pad2d(
+        conv = F.pad2d(
             conv, paddings=self.outpadding, mode='constant', pad_value=0.0)
 
         if self.norm:
             conv = self.bn(conv)
 
         if self.act == 'leaky_relu':
-            conv = fluid.layers.leaky_relu(conv, alpha=self.relufactor)
+            conv = F.leaky_relu(conv, self.relufactor)
         elif self.act == 'relu':
-            conv = fluid.layers.relu(conv)
+            conv = F.relu(conv)
         else:
             conv = conv
 
