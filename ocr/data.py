@@ -15,8 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import paddle
-from paddle import fluid
-from paddle.fluid.dygraph.parallel import ParallelEnv
+from paddle.distributed import ParallelEnv
 
 DATA_MD5 = "7256b1d5420d8c3e74815196e58cdad5"
 DATA_URL = "http://paddle-ocr-data.bj.bcebos.com/data.tar.gz"
@@ -97,7 +96,7 @@ class PadTarget(object):
         return samples
 
 
-class BatchSampler(fluid.io.BatchSampler):
+class BatchSampler(paddle.io.BatchSampler):
     def __init__(self,
                  dataset,
                  batch_size,

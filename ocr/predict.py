@@ -23,7 +23,6 @@ import functools
 from PIL import Image
 
 import paddle
-import paddle.fluid as fluid
 
 from paddle.static import InputSpec as Input
 from paddle.vision.datasets.folder import ImageFolder
@@ -53,7 +52,7 @@ add_arg('dynamic',           bool,  False,   "Whether to use dygraph.")
 
 def main(FLAGS):
     device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
+    paddle.disable_static(device) if FLAGS.dynamic else None
 
     inputs = [Input([None, 1, 48, 384], "float32", name="pixel"), ]
     model = paddle.Model(
@@ -71,7 +70,7 @@ def main(FLAGS):
     fn = lambda p: Image.open(p).convert('L')
     test_dataset = ImageFolder(FLAGS.image_path, loader=fn)
     test_collate_fn = BatchCompose([data.Resize(), data.Normalize()])
-    test_loader = fluid.io.DataLoader(
+    test_loader = paddle.io.DataLoader(
         test_dataset,
         places=device,
         num_workers=0,

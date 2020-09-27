@@ -21,7 +21,6 @@ import numpy as np
 import six
 
 import paddle
-import paddle.fluid as fluid
 
 from paddle.metric import Metric
 
@@ -74,8 +73,8 @@ class SeqAccuracy(Metric):
         self.reset()
 
     def compute(self, output, label, mask, *args, **kwargs):
-        pred = fluid.layers.flatten(output, axis=2)
-        score, topk = fluid.layers.topk(pred, 1)
+        pred = paddle.flatten(output, start_axis=2)
+        score, topk = paddle.topk(pred, 1)
         return topk, label, mask
 
     def update(self, topk, label, mask, *args, **kwargs):

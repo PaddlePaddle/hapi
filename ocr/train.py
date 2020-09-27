@@ -59,7 +59,7 @@ add_arg('dynamic',           bool,  False,      "Whether to use dygraph.")
 
 def main(FLAGS):
     device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
+    paddle.disable_static(device) if FLAGS.dynamic else None
 
     # yapf: disable
     inputs = [
@@ -100,7 +100,7 @@ def main(FLAGS):
         [data.Resize(), data.Normalize(), data.PadTarget()])
     train_sampler = data.BatchSampler(
         train_dataset, batch_size=FLAGS.batch_size, shuffle=True)
-    train_loader = fluid.io.DataLoader(
+    train_loader = paddle.io.DataLoader(
         train_dataset,
         batch_sampler=train_sampler,
         places=device,
@@ -115,7 +115,7 @@ def main(FLAGS):
         batch_size=FLAGS.batch_size,
         drop_last=False,
         shuffle=False)
-    test_loader = fluid.io.DataLoader(
+    test_loader = paddle.io.DataLoader(
         test_dataset,
         batch_sampler=test_sampler,
         places=device,
