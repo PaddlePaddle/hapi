@@ -23,19 +23,17 @@ from paddle.nn import Layer, Conv2d, BatchNorm, ConvTranspose2d
 class ConvBN(Layer):
     """docstring for Conv2d"""
 
-    def __init__(
-            self,
-            num_channels,
-            num_filters,
-            filter_size,
-            stride=1,
-            padding=0,
-            stddev=0.02,
-            norm=True,
-            #is_test=False,
-            act='leaky_relu',
-            relufactor=0.0,
-            use_bias=False):
+    def __init__(self,
+                 num_channels,
+                 num_filters,
+                 filter_size,
+                 stride=1,
+                 padding=0,
+                 stddev=0.02,
+                 norm=True,
+                 act='leaky_relu',
+                 relufactor=0.0,
+                 use_bias=False):
         super(ConvBN, self).__init__()
 
         pattr = paddle.ParamAttr(initializer=nn.initializer.Normal(
@@ -57,7 +55,6 @@ class ConvBN(Layer):
                     initializer=nn.initializer.Constant(0.0)),
                 is_test=False,
                 trainable_statistics=True)
-            #track_running_stats=True)
         self.relufactor = relufactor
         self.norm = norm
         self.act = act
@@ -78,20 +75,18 @@ class ConvBN(Layer):
 
 
 class DeConvBN(Layer):
-    def __init__(
-            self,
-            num_channels,
-            num_filters,
-            filter_size,
-            stride=1,
-            padding=[0, 0],
-            outpadding=[0, 0, 0, 0],
-            stddev=0.02,
-            act='leaky_relu',
-            norm=True,
-            #is_test=False,
-            relufactor=0.0,
-            use_bias=False):
+    def __init__(self,
+                 num_channels,
+                 num_filters,
+                 filter_size,
+                 stride=1,
+                 padding=[0, 0],
+                 outpadding=[0, 0, 0, 0],
+                 stddev=0.02,
+                 act='leaky_relu',
+                 norm=True,
+                 relufactor=0.0,
+                 use_bias=False):
         super(DeConvBN, self).__init__()
 
         pattr = paddle.ParamAttr(initializer=nn.initializer.Normal(
@@ -113,7 +108,6 @@ class DeConvBN(Layer):
                     initializer=nn.initializer.Constant(0.0)),
                 is_test=False,
                 trainable_statistics=True)
-            #track_running_stats=True)
         self.outpadding = outpadding
         self.relufactor = relufactor
         self.use_bias = use_bias

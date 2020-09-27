@@ -36,7 +36,7 @@ class ResnetBlock(Layer):
         out_res = F.pad2d(inputs, [1, 1, 1, 1], mode="reflect")
         out_res = self.conv0(out_res)
         if self.dropout:
-            out_res = F.dropout(out_res, p=0.5)
+            out_res = F.dropout(out_res, p=0.5, mode='downscale_in_infer')
         out_res = F.pad2d(out_res, [1, 1, 1, 1], mode="reflect")
         out_res = self.conv1(out_res)
         return out_res + inputs

@@ -23,6 +23,7 @@ import contextlib
 import time
 
 import paddle
+import paddle.fluid as fluid
 from paddle.static import InputSpec as Input
 
 from check import check_gpu
