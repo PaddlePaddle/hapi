@@ -17,7 +17,7 @@ from __future__ import division
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
-from paddle.nn import Layer, Conv2d, BatchNorm2d, ConvTranspose2d
+from paddle.nn import Layer, Conv2d, BatchNorm, ConvTranspose2d
 
 
 class ConvBN(Layer):
@@ -49,14 +49,15 @@ class ConvBN(Layer):
             weight_attr=pattr,
             bias_attr=use_bias)
         if norm:
-            self.bn = BatchNorm2d(
+            self.bn = BatchNorm(
                 num_filters,
-                weight_attr=paddle.ParamAttr(
+                param_attr=paddle.ParamAttr(
                     initializer=nn.initializer.Normal(1.0, 0.02)),
                 bias_attr=paddle.ParamAttr(
                     initializer=nn.initializer.Constant(0.0)),
-                #is_test=False,
-                track_running_stats=True)
+                is_test=False,
+                trainable_statistics=True)
+            #track_running_stats=True)
         self.relufactor = relufactor
         self.norm = norm
         self.act = act
@@ -104,14 +105,15 @@ class DeConvBN(Layer):
             weight_attr=pattr,
             bias_attr=use_bias)
         if norm:
-            self.bn = BatchNorm2d(
+            self.bn = BatchNorm(
                 num_filters,
-                weight_attr=paddle.ParamAttr(
+                param_attr=paddle.ParamAttr(
                     initializer=nn.initializer.Normal(1.0, 0.02)),
                 bias_attr=paddle.ParamAttr(
                     initializer=nn.initializer.Constant(0.0)),
-                #is_test=False,
-                track_running_stats=True)
+                is_test=False,
+                trainable_statistics=True)
+            #track_running_stats=True)
         self.outpadding = outpadding
         self.relufactor = relufactor
         self.use_bias = use_bias
