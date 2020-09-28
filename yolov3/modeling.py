@@ -16,11 +16,10 @@ from __future__ import division
 from __future__ import print_function
 
 import paddle
-import paddle.fluid as fluid
-from paddle.fluid.dygraph.nn import Conv2D, BatchNorm
-from paddle.fluid.param_attr import ParamAttr
-from paddle.fluid.regularizer import L2Decay
-
+import paddle.nn as nn
+import paddle.nn.functional as F
+from paddle import ParamAttr
+from paddle.regularizer import L2Decay
 from paddle.static import InputSpec
 from paddle.utils.download import get_weights_path_from_url
 
@@ -28,14 +27,14 @@ from darknet import darknet53
 
 __all__ = ['YoloLoss', 'YOLOv3', 'yolov3_darknet53']
 
-# {num_layers: (url, md5)}
+# {depth: (url, md5)}
 pretrain_infos = {
     53: ('https://paddlemodels.bj.bcebos.com/hapi/yolov3_darknet53.pdparams',
          'aed7dd45124ff2e844ae3bd5ba6c91d2')
 }
 
 
-class ConvBNLayer(fluid.dygraph.Layer):
+class ConvBNLayer(nn.Layer):
     def __init__(self,
                  ch_in,
                  ch_out,
@@ -46,25 +45,18 @@ class ConvBNLayer(fluid.dygraph.Layer):
                  act="leaky"):
         super(ConvBNLayer, self).__init__()
 
-        self.conv = Conv2D(
-            num_channels=ch_in,
-            num_filters=ch_out,
-            filter_size=filter_size,
+        self.conv = nn.Conv2d(
+            in_channels=ch_in,
+            out_channels=ch_out,
+            kernel_size=filter_size,
             stride=stride,
             padding=padding,
             groups=groups,
-            param_attr=ParamAttr(
-                initializer=fluid.initializer.Normal(0., 0.02)),
-            bias_attr=False,
-            act=None)
-        self.batch_norm = BatchNorm(
-            num_channels=ch_out,
-            param_attr=ParamAttr(
-                initializer=fluid.initializer.Normal(0., 0.02),
-                regularizer=L2Decay(0.)),
-            bias_attr=ParamAttr(
-                initializer=fluid.initializer.Constant(0.0),
-                regularizer=L2Decay(0.)))
+            bias_attr=False)
+        self.batch_norm = nn.BatchNorm2d(
+            ch_out,
+            weight_attr=ParamAttr(regularizer=L2Decay(0.)),
+            bias_attr=ParamAttr(regularizer=L2Decay(0.)))
 
         self.act = act
 
@@ -72,11 +64,11 @@ class ConvBNLayer(fluid.dygraph.Layer):
         out = self.conv(inputs)
         out = self.batch_norm(out)
         if self.act == 'leaky':
-            out = fluid.layers.leaky_relu(x=out, alpha=0.1)
+            out = F.leaky_relu(out, 0.1)
         return out
 
 
-class YoloDetectionBlock(fluid.dygraph.Layer):
+class YoloDetectionBlock(nn.Layer):
     def __init__(self, ch_in, channel):
         super(YoloDetectionBlock, self).__init__()
 
@@ -126,7 +118,7 @@ class YoloDetectionBlock(fluid.dygraph.Layer):
         return route, tip
 
 
-class YOLOv3(fluid.dygraph.Layer):
+class YOLOv3(nn.Layer):
     """YOLOv3 model from
     `"YOLOv3: An Incremental Improvement" <https://arxiv.org/abs/1804.02767>`_
 
@@ -135,7 +127,7 @@ class YOLOv3(fluid.dygraph.Layer):
         model_mode (str): 'train', 'eval', 'test' mode, network structure
             will be diffrent in the output layer and data, in 'train' mode,
             no output layer append, in 'eval' and 'test', output feature
-            map will be decode to predictions by 'fluid.layers.yolo_box',
+            map will be decode to predictions by 'paddle.nn.functional.yolo_box',
             in 'eval' mode, return feature maps and predictions, in 'test'
             mode, only return predictions. Default 'train'.
 
@@ -174,15 +166,14 @@ class YOLOv3(fluid.dygraph.Layer):
 
             block_out = self.add_sublayer(
                 "block_out_{}".format(idx),
-                Conv2D(
-                    num_channels=1024 // (2**idx),
-                    num_filters=num_filters,
-                    filter_size=1,
-                    act=None,
-                    param_attr=ParamAttr(
-                        initializer=fluid.initializer.Normal(0., 0.02)),
+                nn.Conv2d(
+                    in_channels=1024 // (2**idx),
+                    out_channels=num_filters,
+                    kernel_size=1,
+                    weight_attr=ParamAttr(
+                        initializer=nn.initializer.Normal(0., 0.02)),
                     bias_attr=ParamAttr(
-                        initializer=fluid.initializer.Constant(0.0),
+                        initializer=nn.initializer.Constant(0.0),
                         regularizer=L2Decay(0.))))
             self.block_outputs.append(block_out)
             if idx < 2:
@@ -203,16 +194,16 @@ class YOLOv3(fluid.dygraph.Layer):
 
         feats = self.backbone(inputs)
         route = None
-        for idx, feat in enumerate(feats):
+        for idx, feat in enumerate(feats[::-1]):
             if idx > 0:
-                feat = fluid.layers.concat(input=[route, feat], axis=1)
+                feat = paddle.concat(x=[route, feat], axis=1)
             route, tip = self.yolo_blocks[idx](feat)
             block_out = self.block_outputs[idx](tip)
             outputs.append(block_out)
 
             if idx < 2:
                 route = self.route_blocks[idx](route)
-                route = fluid.layers.resize_nearest(route, scale=2)
+                route = F.resize_nearest(route, scale=2)
 
             if self.model_mode != 'train':
                 anchor_mask = self.anchor_masks[idx]
@@ -220,7 +211,7 @@ class YOLOv3(fluid.dygraph.Layer):
                 for m in anchor_mask:
                     mask_anchors.append(self.anchors[2 * m])
                     mask_anchors.append(self.anchors[2 * m + 1])
-                b, s = fluid.layers.yolo_box(
+                b, s = F.yolo_box(
                     x=block_out,
                     img_size=img_shape,
                     anchors=mask_anchors,
@@ -229,7 +220,7 @@ class YOLOv3(fluid.dygraph.Layer):
                     downsample_ratio=downsample)
 
                 boxes.append(b)
-                scores.append(fluid.layers.transpose(s, perm=[0, 2, 1]))
+                scores.append(paddle.transpose(s, perm=[0, 2, 1]))
 
             downsample //= 2
 
@@ -237,10 +228,10 @@ class YOLOv3(fluid.dygraph.Layer):
             return outputs
 
         preds = [
-            img_id, fluid.layers.multiclass_nms(
-                bboxes=fluid.layers.concat(
+            img_id, F.multiclass_nms(
+                bboxes=paddle.concat(
                     boxes, axis=1),
-                scores=fluid.layers.concat(
+                scores=paddle.concat(
                     scores, axis=2),
                 score_threshold=self.valid_thresh,
                 nms_top_k=self.nms_topk,
@@ -256,7 +247,7 @@ class YOLOv3(fluid.dygraph.Layer):
         return outputs + preds
 
 
-class YoloLoss(fluid.dygraph.Layer):
+class YoloLoss(nn.Layer):
     def __init__(self, num_classes=80, num_max_boxes=50):
         super(YoloLoss, self).__init__()
         self.num_classes = num_classes
@@ -282,7 +273,7 @@ class YoloLoss(fluid.dygraph.Layer):
         for idx, out in enumerate(outputs):
             if idx == 3: break  # debug
             anchor_mask = self.anchor_masks[idx]
-            loss = fluid.layers.yolov3_loss(
+            loss = F.yolov3_loss(
                 x=out,
                 gt_box=gt_box,
                 gt_label=gt_label,
@@ -293,7 +284,7 @@ class YoloLoss(fluid.dygraph.Layer):
                 class_num=self.num_classes,
                 ignore_thresh=self.ignore_thresh,
                 use_label_smooth=False)
-            loss = fluid.layers.reduce_mean(loss)
+            loss = paddle.mean(loss)
             losses.append(loss)
             downsample //= 2
         return losses
@@ -341,7 +332,7 @@ def yolov3_darknet53(num_classes=80,
         model_mode (str): 'train', 'eval', 'test' mode, network structure
             will be diffrent in the output layer and data, in 'train' mode,
             no output layer append, in 'eval' and 'test', output feature
-            map will be decode to predictions by 'fluid.layers.yolo_box',
+            map will be decode to predictions by 'paddle.nn.functional.yolo_box',
             in 'eval' mode, return feature maps and predictions, in 'test'
             mode, only return predictions. Default 'train'.
         pretrained (bool): If True, returns a model with pre-trained model
@@ -349,3 +340,6 @@ def yolov3_darknet53(num_classes=80,
     """
     return _yolov3_darknet(53, num_classes, num_max_boxes, model_mode,
                            pretrained)
+
+if __name__ == "__main__":
+    yd = yolov3_darknet53()
