@@ -284,7 +284,7 @@ class YoloLoss(nn.Layer):
                 class_num=self.num_classes,
                 ignore_thresh=self.ignore_thresh,
                 use_label_smooth=False)
-            loss = paddle.mean(loss)
+            loss = paddle.reduce_mean(loss)
             losses.append(loss)
             downsample //= 2
         return losses
