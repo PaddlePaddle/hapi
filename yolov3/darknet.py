@@ -223,7 +223,3 @@ def darknet53(pretrained=True):
     """
     return _darknet(53, pretrained)
 
-if __name__ == "__main__":
-    d = darknet53(pretrained=True)
-    # paddle.save(d.state_dict(), 'd.params')
-    # d.load_dict(paddle.load('./new_darknet53.pdparams'))

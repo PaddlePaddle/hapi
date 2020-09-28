@@ -341,5 +341,3 @@ def yolov3_darknet53(num_classes=80,
     return _yolov3_darknet(53, num_classes, num_max_boxes, model_mode,
                            pretrained)
 
-if __name__ == "__main__":
-    yd = yolov3_darknet53()
