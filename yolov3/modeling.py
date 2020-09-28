@@ -30,7 +30,7 @@ __all__ = ['YoloLoss', 'YOLOv3', 'yolov3_darknet53']
 # {depth: (url, md5)}
 pretrain_infos = {
     53: ('https://paddlemodels.bj.bcebos.com/hapi/yolov3_darknet53.pdparams',
-         'aed7dd45124ff2e844ae3bd5ba6c91d2')
+         '809a07f541b7caf11d0c806986643c0f')
 }
 
 
