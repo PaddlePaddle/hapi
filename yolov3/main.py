@@ -59,8 +59,7 @@ def make_optimizer(step_per_epoch, parameter_list=None):
 
 
 def main():
-    device = paddle.set_device(FLAGS.device)
-    paddle.disable_static(device) if FLAGS.dynamic else None
+    paddle.enable_static() if FLAGS.dynamic else None
 
     if not FLAGS.eval_only:  # training mode
         train_transform = Compose([
@@ -81,7 +80,6 @@ def main():
         loader = DataLoader(
             dataset,
             batch_sampler=batch_sampler,
-            places=device,
             num_workers=FLAGS.num_workers,
             return_list=True,
             collate_fn=train_collate_fn)
@@ -105,7 +103,6 @@ def main():
         loader = DataLoader(
             dataset,
             batch_sampler=batch_sampler,
-            places=device,
             num_workers=FLAGS.num_workers,
             return_list=True,
             collate_fn=eval_collate_fn)
