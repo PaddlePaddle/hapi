@@ -108,8 +108,7 @@ class BottleneckBlock(nn.Layer):
             short = inputs
         else:
             short = self.short(inputs)
-        # y = fluid.layers.elementwise_add(x=short, y=conv2, act="relu")
-        y = F.relu(short + conv2)
+        y = paddle.elementwise_add(x=short, y=conv2, act="relu")
         return y
 
 
@@ -145,7 +144,7 @@ class TSM_ResNet(nn.Layer):
             act='relu')
         # self.pool2d_max = Pool2D(
         #     pool_size=3, pool_stride=2, pool_padding=1, pool_type='max')
-        self.pool2d_max = nn.MaxPool2d(kernel_size=2, stride=2, padding=1)
+        # self.pool2d_max = nn.MaxPool2d(kernel_size=2, stride=2, padding=1)
 
         self.bottleneck_block_list = []
         num_channels = 64
@@ -166,32 +165,33 @@ class TSM_ResNet(nn.Layer):
                 shortcut = True
         # self.pool2d_avg = Pool2D(
         #     pool_size=7, pool_type='avg', global_pooling=True)
-        self.pool2d_avg = nn.AdaptiveAvgPool2d(output_size=1)
+        # self.pool2d_avg = nn.AdaptiveAvgPool2d(output_size=1)
 
         stdv = 1.0 / math.sqrt(2048 * 1.0)
 
         self.out = nn.Linear(
             2048,
+            # self.class_dim)
             self.class_dim,
             weight_attr=paddle.ParamAttr(
                 initializer=nn.initializer.Uniform(-stdv, stdv)),
             bias_attr=paddle.ParamAttr(
                 learning_rate=2.0, regularizer=paddle.regularizer.L2Decay(0.)))
 
+
     def forward(self, inputs):
         y = paddle.reshape(
             inputs, [-1, inputs.shape[2], inputs.shape[3], inputs.shape[4]])
         y = self.conv(y)
-        y = self.pool2d_max(y)
+        y = F.max_pool2d(y, kernel_size=3, stride=2, padding=1)
         for bottleneck_block in self.bottleneck_block_list:
             y = bottleneck_block(y)
-        y = self.pool2d_avg(y)
+        y = F.adaptive_avg_pool2d(y, output_size=1)
         y = F.dropout(y, p=0.5)
         y = paddle.reshape(y, [-1, self.seg_num, y.shape[1]])
-        y = paddle.mean(y, axis=1)
+        y = paddle.reduce_mean(y, dim=1)
         y = paddle.reshape(y, shape=[-1, 2048])
         y = self.out(y)
-        y = F.softmax(y)
         return y
 
 
