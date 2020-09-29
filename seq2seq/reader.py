@@ -357,9 +357,9 @@ class Seq2SeqBatchSampler(BatchSampler):
         self._random.seed(seed)
         # for multi-devices
         self._distribute_mode = distribute_mode
-        self._nranks = paddle.fluid.dygraph.ParallelEnv().nranks
-        self._local_rank = paddle.fluid.dygraph.ParallelEnv().local_rank
-        self._device_id = paddle.fluid.dygraph.ParallelEnv().dev_id
+        self._nranks = paddle.distributed.ParallelEnv().nranks
+        self._local_rank = paddle.distributed.ParallelEnv().local_rank
+        self._device_id = paddle.distributed.ParallelEnv().dev_id
 
     def __iter__(self):
         # global sort or global shuffle
