@@ -36,8 +36,8 @@ def parse_args():
     parser.add_argument(
         "--attention",
         type=eval,
-        default=False,
-        help="Whether use attention model")
+        default=True,
+        help="Whether use attention in model")
 
     parser.add_argument(
         "--optimizer",
@@ -56,11 +56,19 @@ def parse_args():
         type=int,
         default=1,
         help="layers number of encoder and decoder")
+
+    parser.add_argument(
+        "--padding_idx",
+        type=int,
+        default=0,
+        help="padding index of source embedding and target embedding")
+
     parser.add_argument(
         "--hidden_size",
         type=int,
         default=100,
         help="hidden size of encoder and decoder")
+
     parser.add_argument("--src_vocab_size", type=int, help="source vocab size")
     parser.add_argument("--tar_vocab_size", type=int, help="target vocab size")
 
@@ -105,6 +113,7 @@ def parse_args():
 
     parser.add_argument(
         "--infer_file", type=str, help="file name for inference")
+
     parser.add_argument(
         "--infer_output_file",
         type=str,
@@ -120,7 +129,7 @@ def parse_args():
         help='Whether using gpu [True|False]')
 
     parser.add_argument(
-        '--eager_run', type=eval, default=False, help='Whether to use dygraph')
+        '--eager_run', type=eval, default=True, help='Whether to use dygraph')
 
     parser.add_argument(
         "--enable_ce",

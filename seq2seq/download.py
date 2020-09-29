@@ -47,7 +47,7 @@ def main(arguments):
         url = remote_path + '/' + filename
         tar_file = os.path.join(tar_path, filename)
         URLLIB.urlretrieve(url, tar_file)
-    print("Downloaded sucess......")
+    print("Downloaded success......")
 
 
 if __name__ == '__main__':

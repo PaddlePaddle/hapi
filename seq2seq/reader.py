@@ -24,9 +24,8 @@ import itertools
 from functools import partial
 
 import numpy as np
-import paddle.fluid as fluid
-from paddle.fluid.dygraph.parallel import ParallelEnv
-from paddle.fluid.io import BatchSampler, DataLoader, Dataset
+import paddle
+from paddle.io import BatchSampler, DataLoader, Dataset
 
 
 def create_data_loader(args, device, for_train=True):
@@ -76,8 +75,7 @@ def prepare_train_input(insts, bos_id, eos_id, pad_id):
         [inst[0] for inst in insts], pad_id=pad_id)
     trg, trg_length = pad_batch_data(
         [inst[1] for inst in insts], pad_id=pad_id)
-    trg_length = trg_length - 1
-    return src, src_length, trg[:, :-1], trg_length, trg[:, 1:, np.newaxis]
+    return src, src_length, trg[:, :-1], trg[:, 1:, np.newaxis]
 
 
 def prepare_infer_input(insts, bos_id, eos_id, pad_id):
@@ -359,9 +357,9 @@ class Seq2SeqBatchSampler(BatchSampler):
         self._random.seed(seed)
         # for multi-devices
         self._distribute_mode = distribute_mode
-        self._nranks = ParallelEnv().nranks
-        self._local_rank = ParallelEnv().local_rank
-        self._device_id = ParallelEnv().dev_id
+        self._nranks = paddle.fluid.dygraph.ParallelEnv().nranks
+        self._local_rank = paddle.fluid.dygraph.ParallelEnv().local_rank
+        self._device_id = paddle.fluid.dygraph.ParallelEnv().dev_id
 
     def __iter__(self):
         # global sort or global shuffle

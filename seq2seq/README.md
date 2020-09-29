@@ -1,4 +1,4 @@
-运行本目录下的范例模型需要安装PaddlePaddle Fluid 1.7版。如果您的 PaddlePaddle 安装版本低于此要求，请按照[安装文档](https://www.paddlepaddle.org.cn/#quick-start)中的说明更新 PaddlePaddle 安装版本。
+运行本目录下的范例模型需要安装PaddlePaddle Fluid 2.0版。如果您的 PaddlePaddle 安装版本低于此要求，请按照[安装文档](https://www.paddlepaddle.org.cn/#quick-start)中的说明更新 PaddlePaddle 安装版本。
 
 # Sequence to Sequence (Seq2Seq)
 
@@ -12,8 +12,7 @@
 ├── download.py            # 数据下载程序
 ├── train.py               # 训练主程序
 ├── predict.py             # 预测主程序
-├── seq2seq_attn.py        # 带注意力机制的翻译模型程序
-└── seq2seq_base.py        # 无注意力机制的翻译模型程序
+└── seq2seq_base.py        # 翻译模型程序
 ```
 
 ## 简介
@@ -35,7 +34,7 @@ Sequence to Sequence (Seq2Seq)，使用编码器-解码器（Encoder-Decoder）�
 git clone https://github.com/PaddlePaddle/hapi
 cd hapi
 export PYTHONPATH=$PYTHONPATH:`pwd`
-cd examples/seq2seq
+cd seq2seq
 ```
 
 ## 数据介绍

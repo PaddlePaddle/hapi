@@ -16,7 +16,6 @@ import math
 import functools
 
 import paddle
-import paddle.fluid as fluid
 from paddle.metric import Metric
 from paddle.text import BasicLSTMCell
 
@@ -58,7 +57,7 @@ class PPL(Metric):
         self.reset()
 
     def compute(self, pred, seq_length, label):
-        word_num = fluid.layers.reduce_sum(seq_length)
+        word_num = paddle.reduce_sum(seq_length)
         return word_num
 
     def update(self, word_num):
@@ -79,22 +78,3 @@ class PPL(Metric):
         self.total_loss += batch_loss * batch_size
         ppl = math.exp(self.total_loss / self.word_count)
         return ppl
-
-
-def get_model_cls(model_cls):
-    """
-    Patch for BasicLSTMCell to make `_forget_bias.stop_gradient=True`
-    Remove this workaround when BasicLSTMCell or recurrent_op is fixed.
-    """
-
-    @functools.wraps(model_cls.__init__)
-    def __lstm_patch__(self, *args, **kwargs):
-        self._raw_init(*args, **kwargs)
-        layers = self.sublayers(include_sublayers=True)
-        for layer in layers:
-            if isinstance(layer, BasicLSTMCell):
-                layer._forget_bias.stop_gradient = False
-
-    model_cls._raw_init = model_cls.__init__
-    model_cls.__init__ = __lstm_patch__
-    return model_cls
