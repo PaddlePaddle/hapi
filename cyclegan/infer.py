@@ -25,16 +25,15 @@ from PIL import Image
 from scipy.misc import imsave
 
 import paddle
-import paddle.fluid as fluid
 from paddle.static import InputSpec as Input
 
-from check import check_gpu, check_version
+from check import check_gpu
 from cyclegan import Generator, GeneratorCombine
 
 
 def main():
     place = paddle.set_device(FLAGS.device)
-    fluid.enable_dygraph(place) if FLAGS.dynamic else None
+    paddle.disable_static(place) if FLAGS.dynamic else None
 
     im_shape = [-1, 3, 256, 256]
     input_A = Input(im_shape, 'float32', 'input_A')
@@ -110,5 +109,4 @@ if __name__ == "__main__":
     FLAGS = parser.parse_args()
     print(FLAGS)
     check_gpu(str.lower(FLAGS.device) == 'gpu')
-    check_version()
     main()

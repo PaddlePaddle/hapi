@@ -38,29 +38,28 @@ NUM_MAX_BOXES = 50
 
 def make_optimizer(step_per_epoch, parameter_list=None):
     base_lr = FLAGS.lr
-    warm_up_iter = 1000
+    warmup_steps= 1000
     momentum = 0.9
     weight_decay = 5e-4
     boundaries = [step_per_epoch * e for e in [200, 250]]
     values = [base_lr * (0.1**i) for i in range(len(boundaries) + 1)]
-    learning_rate = fluid.layers.piecewise_decay(
-        boundaries=boundaries, values=values)
-    learning_rate = fluid.layers.linear_lr_warmup(
+    learning_rate = paddle.optimizer.PiecewiseLR(
+            boundaries=boundaries, values=values)
+    learning_rate = paddle.optimizer.LinearLrWarmup(
+            learning_rate=learning_rate,
+            warmup_steps=warmup_steps,
+            start_lr=base_lr / 3.,
+            end_lr=base_lr)
+    optimizer = paddle.optimizer.Momentum(
         learning_rate=learning_rate,
-        warmup_steps=warm_up_iter,
-        start_lr=0.0,
-        end_lr=base_lr)
-    optimizer = fluid.optimizer.Momentum(
-        learning_rate=learning_rate,
-        regularization=fluid.regularizer.L2Decay(weight_decay),
+        weight_decay=weight_decay,
         momentum=momentum,
-        parameter_list=parameter_list)
+        parameters=parameter_list)
     return optimizer
 
 
 def main():
-    device = paddle.set_device(FLAGS.device)
-    paddle.disable_static(device) if FLAGS.dynamic else None
+    paddle.enable_static() if FLAGS.dynamic else None
 
     if not FLAGS.eval_only:  # training mode
         train_transform = Compose([
@@ -81,7 +80,6 @@ def main():
         loader = DataLoader(
             dataset,
             batch_sampler=batch_sampler,
-            places=device,
             num_workers=FLAGS.num_workers,
             return_list=True,
             collate_fn=train_collate_fn)
@@ -105,7 +103,6 @@ def main():
         loader = DataLoader(
             dataset,
             batch_sampler=batch_sampler,
-            places=device,
             num_workers=FLAGS.num_workers,
             return_list=True,
             collate_fn=eval_collate_fn)
