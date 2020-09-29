@@ -34,7 +34,7 @@ def make_optimizer(parameters=None):
     values = [FLAGS.lr * (0.1**i) for i in range(len(boundaries) + 1)]
 
     learning_rate = paddle.optimizer.PiecewiseLR(
-            boundaries=boundaries, values=values, verbose=True)
+            boundaries=boundaries, values=values)
     optimizer = paddle.optimizer.Momentum(
         learning_rate=learning_rate,
         weight_decay=1e-4,
