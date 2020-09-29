@@ -90,7 +90,6 @@ def do_predict(args):
             args.num_layers,
             args.attention,
             args.dropout,
-            args.padding_idx,
             bos_id=bos_id,
             eos_id=eos_id,
             beam_size=args.beam_size,

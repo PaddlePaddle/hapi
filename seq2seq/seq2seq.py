@@ -39,14 +39,14 @@ class Encoder(Layer):
                  embed_dim,
                  hidden_size,
                  num_layers,
-                 padding_idx=0,
+                 pad_id=0,
                  dropout_prob=0.,
                  init_scale=0.1):
         super(Encoder, self).__init__()
         self.embedder = Embedding(
             vocab_size,
             embed_dim,
-            padding_idx,
+            pad_id,
             weight_attr=paddle.ParamAttr(initializer=I.Uniform(
                 low=-init_scale, high=init_scale)))
         self.lstm = LSTM(
@@ -143,7 +143,7 @@ class Decoder(Layer):
                  embed_dim,
                  hidden_size,
                  num_layers,
-                 padding_idx=0,
+                 pad_id=0,
                  attention=True,
                  dropout_prob=0.,
                  init_scale=0.1):
@@ -152,7 +152,7 @@ class Decoder(Layer):
         self.embedder = Embedding(
             vocab_size,
             embed_dim,
-            padding_idx,
+            pad_id,
             weight_attr=paddle.ParamAttr(initializer=I.Uniform(
                 low=-init_scale, high=init_scale)))
         self.lstm_attention = RNN(DecoderCell(
@@ -191,18 +191,17 @@ class Seq2Seq(Layer):
                  num_layers,
                  attention=True,
                  dropout_prob=0.,
-                 padding_idx=0,
+                 pad_id=0,
                  init_scale=0.1):
         super(Seq2Seq, self).__init__()
         self.attention = attention
         self.hidden_size = hidden_size
-        self.padding_idx = padding_idx
+        self.pad_id = pad_id
         self.encoder = Encoder(src_vocab_size, embed_dim, hidden_size,
-                               num_layers, padding_idx, dropout_prob,
-                               init_scale)
+                               num_layers, pad_id, dropout_prob, init_scale)
         self.decoder = Decoder(trg_vocab_size, embed_dim, hidden_size,
-                               num_layers, padding_idx, attention,
-                               dropout_prob, init_scale)
+                               num_layers, pad_id, attention, dropout_prob,
+                               init_scale)
 
     def forward(self, src, src_length, trg):
         # encoder
@@ -216,8 +215,7 @@ class Seq2Seq(Layer):
         ]
         if self.attention:
             # attention mask to avoid paying attention on padddings
-            src_mask = (
-                src != self.padding_idx).astype(paddle.get_default_dtype())
+            src_mask = (src != self.pad_id).astype(paddle.get_default_dtype())
             encoder_padding_mask = (src_mask - 1.0) * 1e9
             encoder_padding_mask = paddle.unsqueeze(encoder_padding_mask, [1])
             # decoder with attentioon
@@ -226,7 +224,7 @@ class Seq2Seq(Layer):
         else:
             predict = self.decoder(trg, decoder_initial_states)
 
-        trg_mask = (trg != self.padding_idx).astype(paddle.get_default_dtype())
+        trg_mask = (trg != self.pad_id).astype(paddle.get_default_dtype())
         return predict, trg_mask
 
 
@@ -239,7 +237,6 @@ class Seq2SeqInfer(Seq2Seq):
                  num_layers,
                  attention=True,
                  dropout_prob=0.,
-                 padding_idx=0,
                  bos_id=0,
                  eos_id=1,
                  beam_size=4,

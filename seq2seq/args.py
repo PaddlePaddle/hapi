@@ -58,12 +58,6 @@ def parse_args():
         help="layers number of encoder and decoder")
 
     parser.add_argument(
-        "--padding_idx",
-        type=int,
-        default=0,
-        help="padding index of source embedding and target embedding")
-
-    parser.add_argument(
         "--hidden_size",
         type=int,
         default=100,

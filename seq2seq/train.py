@@ -51,12 +51,12 @@ def do_train(args):
     ]
 
     # def dataloader
-    train_loader, eval_loader = create_data_loader(args, device)
+    [train_loader, eval_loader], pad_id = create_data_loader(args, device)
 
     model = paddle.Model(
         Seq2Seq(args.src_vocab_size, args.tar_vocab_size, args.hidden_size,
                 args.hidden_size, args.num_layers, args.attention,
-                args.dropout, args.padding_idx),
+                args.dropout, pad_id),
         inputs=inputs,
         labels=labels)
     grad_clip = paddle.nn.GradientClipByGlobalNorm(args.max_grad_norm)

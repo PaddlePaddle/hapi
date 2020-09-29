@@ -67,7 +67,7 @@ def create_data_loader(args, device, for_train=True):
             num_workers=0,
             return_list=True)
         data_loaders[i] = data_loader
-    return data_loaders
+    return data_loaders, eos_id
 
 
 def prepare_train_input(insts, bos_id, eos_id, pad_id):
