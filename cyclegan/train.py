@@ -26,7 +26,7 @@ import paddle
 import paddle.fluid as fluid
 from paddle.static import InputSpec as Input
 
-from check import check_gpu, check_version
+from check import check_gpu
 from cyclegan import Generator, Discriminator, GeneratorCombine, GLoss, DLoss
 import data as data
 
@@ -39,17 +39,17 @@ def opt(parameters):
     lr = [1., 0.8, 0.6, 0.4, 0.2, 0.1]
     bounds = [i * step_per_epoch for i in bounds]
     lr = [i * lr_base for i in lr]
-    optimizer = fluid.optimizer.Adam(
-        learning_rate=fluid.layers.piecewise_decay(
+    optimizer = paddle.optimizer.Adam(
+        learning_rate=paddle.optimizer.lr_scheduler.PiecewiseLR(
             boundaries=bounds, values=lr),
-        parameter_list=parameters,
+        parameters=parameters,
         beta1=0.5)
     return optimizer
 
 
 def main():
     place = paddle.set_device(FLAGS.device)
-    fluid.enable_dygraph(place) if FLAGS.dynamic else None
+    paddle.disable_static(place) if FLAGS.dynamic else None
 
     im_shape = [None, 3, 256, 256]
     input_A = Input(im_shape, 'float32', 'input_A')
@@ -158,5 +158,4 @@ if __name__ == "__main__":
     FLAGS = parser.parse_args()
     print(FLAGS)
     check_gpu(str.lower(FLAGS.device) == 'gpu')
-    check_version()
     main()
