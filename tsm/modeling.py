@@ -16,8 +16,6 @@ import math
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
-# import paddle.fluid as fluid
-# from paddle.fluid.dygraph.nn import Conv2D, Pool2D, BatchNorm, Linear
 
 from paddle.static import InputSpec
 from paddle.utils.download import get_weights_path_from_url
@@ -142,9 +140,6 @@ class TSM_ResNet(nn.Layer):
             filter_size=7,
             stride=2,
             act='relu')
-        # self.pool2d_max = Pool2D(
-        #     pool_size=3, pool_stride=2, pool_padding=1, pool_type='max')
-        # self.pool2d_max = nn.MaxPool2d(kernel_size=2, stride=2, padding=1)
 
         self.bottleneck_block_list = []
         num_channels = 64
@@ -163,15 +158,11 @@ class TSM_ResNet(nn.Layer):
                 num_channels = int(bottleneck_block._num_channels_out)
                 self.bottleneck_block_list.append(bottleneck_block)
                 shortcut = True
-        # self.pool2d_avg = Pool2D(
-        #     pool_size=7, pool_type='avg', global_pooling=True)
-        # self.pool2d_avg = nn.AdaptiveAvgPool2d(output_size=1)
 
         stdv = 1.0 / math.sqrt(2048 * 1.0)
 
         self.out = nn.Linear(
             2048,
-            # self.class_dim)
             self.class_dim,
             weight_attr=paddle.ParamAttr(
                 initializer=nn.initializer.Uniform(-stdv, stdv)),
@@ -204,9 +195,6 @@ def _tsm_resnet(num_layers, seg_num=8, num_classes=400, pretrained=True):
         weight_path = get_weights_path_from_url(*(pretrain_infos[num_layers]))
         assert weight_path.endswith('.pdparams'), \
                 "suffix of weight must be .pdparams"
-        # # weight_dict, _ = fluid.load_dygraph(weight_path)
-        # # model.set_dict(weight_dict)
-        # model.load(weight_path)
         params = paddle.load(weight_path)
         net.load_dict(params)
 
