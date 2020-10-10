@@ -22,8 +22,6 @@ import os
 import numpy as np
 
 import paddle
-from paddle import fluid
-from paddle.fluid.optimizer import Momentum
 from paddle.io import DataLoader, DistributedBatchSampler
 from paddle.vision.transforms import Compose, BatchCompose
 
@@ -36,25 +34,24 @@ from utils import print_arguments
 NUM_MAX_BOXES = 50
 
 
-def make_optimizer(step_per_epoch, parameter_list=None):
+def make_optimizer(parameters=None):
     base_lr = FLAGS.lr
-    warmup_steps= 1000
     momentum = 0.9
     weight_decay = 5e-4
-    boundaries = [step_per_epoch * e for e in [200, 250]]
+    boundaries = [200, 250]
     values = [base_lr * (0.1**i) for i in range(len(boundaries) + 1)]
     learning_rate = paddle.optimizer.PiecewiseLR(
             boundaries=boundaries, values=values)
     learning_rate = paddle.optimizer.LinearLrWarmup(
             learning_rate=learning_rate,
-            warmup_steps=warmup_steps,
-            start_lr=base_lr / 3.,
+            warmup_steps=4,
+            start_lr=base_lr / 5.,
             end_lr=base_lr)
     optimizer = paddle.optimizer.Momentum(
         learning_rate=learning_rate,
         weight_decay=weight_decay,
         momentum=momentum,
-        parameters=parameter_list)
+        parameters=parameters)
     return optimizer
 
 
@@ -118,8 +115,7 @@ def main():
         model.load(
             FLAGS.pretrain_weights, skip_mismatch=True, reset_optimizer=True)
 
-    optim = make_optimizer(
-        len(batch_sampler), parameter_list=model.parameters())
+    optim = make_optimizer(parameters=model.parameters())
 
     model.prepare(
         optimizer=optim, loss=YoloLoss(num_classes=dataset.num_classes))
