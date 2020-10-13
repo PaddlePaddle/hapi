@@ -21,7 +21,6 @@ import argparse
 import numpy as np
 
 import paddle
-import paddle.fluid as fluid
 import paddle.vision.models as models
 
 from paddle.static import InputSpec as Input
@@ -40,27 +39,26 @@ def make_optimizer(step_per_epoch, parameter_list=None):
         milestones = FLAGS.milestones
         boundaries = [step_per_epoch * e for e in milestones]
         values = [base_lr * (0.1**i) for i in range(len(boundaries) + 1)]
-        learning_rate = fluid.layers.piecewise_decay(
-            boundaries=boundaries, values=values)
+        learning_rate = paddle.optimizer.PiecewiseLR(boundaries, values)
     elif lr_scheduler == 'cosine':
-        learning_rate = fluid.layers.cosine_decay(base_lr, step_per_epoch,
-                                                  FLAGS.epoch)
+        learning_rate = paddle.optimizer.CosineAnnealingLR(
+            base_lr, step_per_epoch * FLAGS.epoch)
     else:
         raise ValueError(
             "Expected lr_scheduler in ['piecewise', 'cosine'], but got {}".
             format(lr_scheduler))
 
-    learning_rate = fluid.layers.linear_lr_warmup(
+    learning_rate = paddle.optimizer.LinearLrWarmup(
         learning_rate=learning_rate,
         warmup_steps=5 * step_per_epoch,
         start_lr=0.,
         end_lr=base_lr)
 
-    optimizer = fluid.optimizer.Momentum(
+    optimizer = paddle.optimizer.Momentum(
         learning_rate=learning_rate,
+        weight_decay=weight_decay,
         momentum=momentum,
-        regularization=fluid.regularizer.L2Decay(weight_decay),
-        parameter_list=parameter_list)
+        parameters=parameter_list)
 
     return optimizer
 
