@@ -34,18 +34,18 @@ from utils import print_arguments
 NUM_MAX_BOXES = 50
 
 
-def make_optimizer(parameters=None):
+def make_optimizer(step_per_epoch, parameters=None):
     base_lr = FLAGS.lr
     momentum = 0.9
     weight_decay = 5e-4
-    boundaries = [200, 250]
+    boundaries = [x * step_per_epoch for x in [200, 250]]
     values = [base_lr * (0.1**i) for i in range(len(boundaries) + 1)]
-    learning_rate = paddle.optimizer.PiecewiseLR(
+    learning_rate = paddle.optimizer.lr.PiecewiseDecay(
             boundaries=boundaries, values=values)
-    learning_rate = paddle.optimizer.LinearLrWarmup(
+    learning_rate = paddle.optimizer.lr.LinearWarmup(
             learning_rate=learning_rate,
-            warmup_steps=4,
-            start_lr=base_lr / 5.,
+            warmup_steps=4000,
+            start_lr=0.,
             end_lr=base_lr)
     optimizer = paddle.optimizer.Momentum(
         learning_rate=learning_rate,
@@ -115,7 +115,7 @@ def main():
         model.load(
             FLAGS.pretrain_weights, skip_mismatch=True, reset_optimizer=True)
 
-    optim = make_optimizer(parameters=model.parameters())
+    optim = make_optimizer(len(batch_sampler), parameters=model.parameters())
 
     model.prepare(
         optimizer=optim, loss=YoloLoss(num_classes=dataset.num_classes))

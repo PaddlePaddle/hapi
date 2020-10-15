@@ -20,6 +20,7 @@ import argparse
 import numpy as np
 
 import paddle
+from paddle.distributed import ParallelEnv
 from paddle.vision.transforms import Compose
 
 from modeling import tsm_resnet50
@@ -29,11 +30,11 @@ from transforms import *
 from utils import print_arguments
 
 
-def make_optimizer(parameters=None):
-    boundaries = [40, 60]
+def make_optimizer(step_per_epoch, parameters=None):
+    boundaries = [x * step_per_epoch for x in [2, 4]]
     values = [FLAGS.lr * (0.1**i) for i in range(len(boundaries) + 1)]
 
-    learning_rate = paddle.optimizer.PiecewiseLR(
+    learning_rate = paddle.optimizer.lr.PiecewiseDecay(
             boundaries=boundaries, values=values)
     optimizer = paddle.optimizer.Momentum(
         learning_rate=learning_rate,
@@ -70,7 +71,9 @@ def main():
     model = tsm_resnet50(
         num_classes=train_dataset.num_classes, pretrained=pretrained)
 
-    optim = make_optimizer(model.parameters())
+    step_per_epoch = int(len(train_dataset) / FLAGS.batch_size \
+                         / ParallelEnv().nranks)
+    optim = make_optimizer(step_per_epoch, model.parameters())
 
     model.prepare(
         optimizer=optim,
