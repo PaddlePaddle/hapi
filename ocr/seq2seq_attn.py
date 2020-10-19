@@ -241,8 +241,7 @@ class Seq2SeqAttInferModel(Seq2SeqAttModel):
             beam_size=beam_size,
             embedding_fn=self.embedding,
             output_fn=self.decoder.fc)
-        self.infer_decoder = dynamic_decode(
-            decoder, max_step_num=max_out_len, is_test=True)
+        self.max_out_len == max_out_len
 
     def forward(self, inputs, *args):
         gru_backward, encoded_vector, encoded_proj = self.encoder(inputs)
@@ -255,8 +254,10 @@ class Seq2SeqAttInferModel(Seq2SeqAttModel):
             encoded_proj = BeamSearchDecoder.tile_beam_merge_with_batch(
                 encoded_proj, self.beam_size)
         # dynamic decoding with beam search
-        rs, _ = self.infer_decoder(
+        rs, _ = dynamic_decode(
             inits=decoder_boot,
+            max_step_num=self.max_out_len,
+            is_test=True,
             encoder_vec=encoded_vector,
             encoder_proj=encoded_proj)
         return rs
