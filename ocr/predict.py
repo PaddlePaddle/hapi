@@ -51,8 +51,8 @@ add_arg('static',            bool,  False,   "Whether to use dygraph.")
 
 
 def main(FLAGS):
-    device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
     paddle.disable_static(device) if FLAGS.static else None
+    device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
 
     inputs = [Input([None, 1, 48, 384], "float32", name="pixel"), ]
     model = paddle.Model(

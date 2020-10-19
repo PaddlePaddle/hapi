@@ -32,8 +32,8 @@ from cyclegan import Generator, GeneratorCombine
 
 
 def main():
+    paddle.enable_static(place) if FLAGS.static else None
     place = paddle.set_device(FLAGS.device)
-    paddle.disable_static(place) if FLAGS.dynamic else None
 
     im_shape = [-1, 3, 256, 256]
     input_A = Input(im_shape, 'float32', 'input_A')
@@ -79,7 +79,7 @@ def main():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("CycleGAN inference")
     parser.add_argument(
-        "-d", "--dynamic", action='store_true', help="Enable dygraph mode")
+        "-d", "--static", action='store_true', help="Enable dygraph mode")
     parser.add_argument(
         "-p",
         "--device",

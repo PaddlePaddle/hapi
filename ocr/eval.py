@@ -45,8 +45,8 @@ add_arg('static',            bool,  False,              "Whether to use dygraph.
 
 
 def main(FLAGS):
-    device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
     paddle.enable_static(device) if FLAGS.static else None
+    device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
 
     # yapf: disable
     inputs = [
