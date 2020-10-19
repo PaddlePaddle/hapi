@@ -46,13 +46,13 @@ add_arg('decoder_size',      int,   128,     "Decoder size.")
 add_arg('embedding_dim',     int,   128,     "Word vector dim.")
 add_arg('num_classes',       int,   95,      "Number classes.")
 add_arg('beam_size',         int,   3,       "Beam size for beam search.")
-add_arg('dynamic',           bool,  False,   "Whether to use dygraph.")
+add_arg('static',            bool,  False,   "Whether to use dygraph.")
 # yapf: enable
 
 
 def main(FLAGS):
     device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
-    paddle.disable_static(device) if FLAGS.dynamic else None
+    paddle.disable_static(device) if FLAGS.static else None
 
     inputs = [Input([None, 1, 48, 384], "float32", name="pixel"), ]
     model = paddle.Model(
@@ -81,7 +81,7 @@ def main(FLAGS):
     #outputs = model.predict(test_loader)
     ins_id = 0
     for image, in test_loader:
-        image = image if FLAGS.dynamic else image[0]
+        image = image if FLAGS.static else image[0]
         pred = model.test_batch([image])[0]
         pred = pred[:, :, np.newaxis] if len(pred.shape) == 2 else pred
         pred = np.transpose(pred, [0, 2, 1])

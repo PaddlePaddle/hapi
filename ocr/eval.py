@@ -40,13 +40,13 @@ add_arg('decoder_size',      int,   128,                "Decoder size.")
 add_arg('embedding_dim',     int,   128,                "Word vector dim.")
 add_arg('num_classes',       int,   95,                 "Number classes.")
 add_arg('beam_size',         int,   0,                  "If set beam size, will use beam search.")
-add_arg('dynamic',           bool,  False,              "Whether to use dygraph.")
+add_arg('static',            bool,  False,              "Whether to use dygraph.")
 # yapf: enable
 
 
 def main(FLAGS):
     device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
-    paddle.disable_static(device) if FLAGS.dynamic else None
+    paddle.enable_static(device) if FLAGS.static else None
 
     # yapf: disable
     inputs = [
@@ -93,7 +93,7 @@ def main(FLAGS):
 
 def beam_search(FLAGS):
     device = set_device("gpu" if FLAGS.use_gpu else "cpu")
-    paddle.disable_static(device) if FLAGS.dynamic else None
+    paddle.enable_static(device) if FLAGS.static else None
 
     # yapf: disable
     inputs = [

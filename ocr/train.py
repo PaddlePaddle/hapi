@@ -53,13 +53,13 @@ add_arg('decoder_size',      int,   128,     "Decoder size.")
 add_arg('embedding_dim',     int,   128,     "Word vector dim.")
 add_arg('num_classes',       int,   95,     "Number classes.")
 add_arg('gradient_clip',     float, 5.0,     "Gradient clip value.")
-add_arg('dynamic',           bool,  False,      "Whether to use dygraph.")
+add_arg('static',           bool,  False,      "Whether to use dygraph.")
 # yapf: enable
 
 
 def main(FLAGS):
     device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
-    paddle.disable_static(device) if FLAGS.dynamic else None
+    paddle.enable_static(device) if FLAGS.static else None
 
     # yapf: disable
     inputs = [
