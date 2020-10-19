@@ -14,9 +14,8 @@
 
 import math
 import paddle
-import paddle.fluid as fluid
-from paddle.fluid.layer_helper import LayerHelper
-from paddle.fluid.dygraph.nn import Conv2D, Pool2D, BatchNorm, Linear
+import paddle.nn as nn
+import paddle.nn.functional as F
 
 from paddle.static import InputSpec
 from paddle.utils.download import get_weights_path_from_url
@@ -30,7 +29,7 @@ pretrain_infos = {
 }
 
 
-class ConvBNLayer(fluid.dygraph.Layer):
+class ConvBNLayer(nn.Layer):
     def __init__(self,
                  num_channels,
                  num_filters,
@@ -40,31 +39,29 @@ class ConvBNLayer(fluid.dygraph.Layer):
                  act=None):
         super(ConvBNLayer, self).__init__()
 
-        self._conv = Conv2D(
-            num_channels=num_channels,
-            num_filters=num_filters,
-            filter_size=filter_size,
+        self._conv = nn.Conv2d(
+            in_channels=num_channels,
+            out_channels=num_filters,
+            kernel_size=filter_size,
             stride=stride,
             padding=(filter_size - 1) // 2,
-            groups=None,
-            act=None,
-            param_attr=fluid.param_attr.ParamAttr(),
+            groups=groups,
             bias_attr=False)
 
-        self._batch_norm = BatchNorm(
-            num_filters,
-            act=act,
-            param_attr=fluid.param_attr.ParamAttr(),
-            bias_attr=fluid.param_attr.ParamAttr())
+        self._batch_norm = nn.BatchNorm(num_filters)
+
+        self.act = act
 
     def forward(self, inputs):
         y = self._conv(inputs)
         y = self._batch_norm(y)
+        if self.act == 'relu':
+            y = F.relu(y)
 
         return y
 
 
-class BottleneckBlock(fluid.dygraph.Layer):
+class BottleneckBlock(nn.Layer):
     def __init__(self,
                  num_channels,
                  num_filters,
@@ -101,7 +98,7 @@ class BottleneckBlock(fluid.dygraph.Layer):
         self._num_channels_out = int(num_filters * 4)
 
     def forward(self, inputs):
-        shifts = fluid.layers.temporal_shift(inputs, self.seg_num, 1.0 / 8)
+        shifts = F.temporal_shift(inputs, self.seg_num, 1.0 / 8)
         y = self.conv0(shifts)
         conv1 = self.conv1(y)
         conv2 = self.conv2(conv1)
@@ -109,11 +106,11 @@ class BottleneckBlock(fluid.dygraph.Layer):
             short = inputs
         else:
             short = self.short(inputs)
-        y = fluid.layers.elementwise_add(x=short, y=conv2, act="relu")
+        y = paddle.elementwise_add(x=short, y=conv2, act="relu")
         return y
 
 
-class TSM_ResNet(fluid.dygraph.Layer):
+class TSM_ResNet(nn.Layer):
     """
     TSM network with ResNet as backbone
 
@@ -143,8 +140,6 @@ class TSM_ResNet(fluid.dygraph.Layer):
             filter_size=7,
             stride=2,
             act='relu')
-        self.pool2d_max = Pool2D(
-            pool_size=3, pool_stride=2, pool_padding=1, pool_type='max')
 
         self.bottleneck_block_list = []
         num_channels = 64
@@ -163,41 +158,36 @@ class TSM_ResNet(fluid.dygraph.Layer):
                 num_channels = int(bottleneck_block._num_channels_out)
                 self.bottleneck_block_list.append(bottleneck_block)
                 shortcut = True
-        self.pool2d_avg = Pool2D(
-            pool_size=7, pool_type='avg', global_pooling=True)
 
         stdv = 1.0 / math.sqrt(2048 * 1.0)
 
-        self.out = Linear(
+        self.out = nn.Linear(
             2048,
             self.class_dim,
-            act="softmax",
-            param_attr=fluid.param_attr.ParamAttr(
-                initializer=fluid.initializer.Uniform(-stdv, stdv)),
-            bias_attr=fluid.param_attr.ParamAttr(
-                learning_rate=2.0, regularizer=fluid.regularizer.L2Decay(0.)))
+            weight_attr=paddle.ParamAttr(
+                initializer=nn.initializer.Uniform(-stdv, stdv)),
+            bias_attr=paddle.ParamAttr(
+                learning_rate=2.0, regularizer=paddle.regularizer.L2Decay(0.)))
+
 
     def forward(self, inputs):
-        y = fluid.layers.reshape(
+        y = paddle.reshape(
             inputs, [-1, inputs.shape[2], inputs.shape[3], inputs.shape[4]])
         y = self.conv(y)
-        y = self.pool2d_max(y)
+        y = F.max_pool2d(y, kernel_size=3, stride=2, padding=1)
         for bottleneck_block in self.bottleneck_block_list:
             y = bottleneck_block(y)
-        y = self.pool2d_avg(y)
-        y = fluid.layers.dropout(y, dropout_prob=0.5)
-        y = fluid.layers.reshape(y, [-1, self.seg_num, y.shape[1]])
-        y = fluid.layers.reduce_mean(y, dim=1)
-        y = fluid.layers.reshape(y, shape=[-1, 2048])
+        y = F.adaptive_avg_pool2d(y, output_size=1)
+        y = F.dropout(y, p=0.5)
+        y = paddle.reshape(y, [-1, self.seg_num, y.shape[1]])
+        y = paddle.reduce_mean(y, dim=1)
+        y = paddle.reshape(y, shape=[-1, 2048])
         y = self.out(y)
         return y
 
 
 def _tsm_resnet(num_layers, seg_num=8, num_classes=400, pretrained=True):
-    inputs = [InputSpec([None, 8, 3, 224, 224], 'float32', name='image')]
-    labels = [InputSpec([None, 1], 'int64', name='label')]
     net = TSM_ResNet(num_layers, seg_num, num_classes)
-    model = paddle.Model(net, inputs, labels)
     if pretrained:
         assert num_layers in pretrain_infos.keys(), \
                 "TSM-ResNet{} do not have pretrained weights now, " \
@@ -205,9 +195,12 @@ def _tsm_resnet(num_layers, seg_num=8, num_classes=400, pretrained=True):
         weight_path = get_weights_path_from_url(*(pretrain_infos[num_layers]))
         assert weight_path.endswith('.pdparams'), \
                 "suffix of weight must be .pdparams"
-        # weight_dict, _ = fluid.load_dygraph(weight_path)
-        # model.set_dict(weight_dict)
-        model.load(weight_path)
+        params = paddle.load(weight_path)
+        net.load_dict(params)
+
+    inputs = [InputSpec([None, 8, 3, 224, 224], 'float32', name='image')]
+    labels = [InputSpec([None, 1], 'int64', name='label')]
+    model = paddle.Model(net, inputs, labels)
     return model
 
 
@@ -221,3 +214,4 @@ def tsm_resnet50(seg_num=8, num_classes=400, pretrained=True):
             on COCO, default True
     """
     return _tsm_resnet(50, seg_num, num_classes, pretrained)
+

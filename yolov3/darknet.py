@@ -13,24 +13,22 @@
 #limitations under the License.
 
 import paddle
-import paddle.fluid as fluid
-from paddle.fluid.param_attr import ParamAttr
-from paddle.fluid.regularizer import L2Decay
-
-from paddle.static import InputSpec
-from paddle.fluid.dygraph.nn import Conv2D, BatchNorm
+import paddle.nn as nn
+import paddle.nn.functional as F
+from paddle import ParamAttr
+from paddle.regularizer import L2Decay
 from paddle.utils.download import get_weights_path_from_url
 
 __all__ = ['DarkNet', 'darknet53']
 
-# {num_layers: (url, md5)}
+# {depth: (url, md5)}
 pretrain_infos = {
     53: ('https://paddlemodels.bj.bcebos.com/hapi/darknet53.pdparams',
-         '2506357a5c31e865785112fc614a487d')
+         '0dc32d7b7d1d3ee0406fc2b94eb660ff')
 }
 
 
-class ConvBNLayer(fluid.dygraph.Layer):
+class ConvBNLayer(nn.Layer):
     def __init__(self,
                  ch_in,
                  ch_out,
@@ -38,28 +36,26 @@ class ConvBNLayer(fluid.dygraph.Layer):
                  stride=1,
                  groups=1,
                  padding=0,
-                 act="leaky"):
+                 act="leaky",
+                 name=None):
         super(ConvBNLayer, self).__init__()
 
-        self.conv = Conv2D(
-            num_channels=ch_in,
-            num_filters=ch_out,
-            filter_size=filter_size,
+        self.conv = nn.Conv2d(
+            in_channels=ch_in,
+            out_channels=ch_out,
+            kernel_size=filter_size,
             stride=stride,
             padding=padding,
             groups=groups,
-            param_attr=ParamAttr(
-                initializer=fluid.initializer.Normal(0., 0.02)),
-            bias_attr=False,
-            act=None)
-        self.batch_norm = BatchNorm(
-            num_channels=ch_out,
-            param_attr=ParamAttr(
-                initializer=fluid.initializer.Normal(0., 0.02),
-                regularizer=L2Decay(0.)),
+            weight_attr=ParamAttr(name=name + '.conv.weights'),
+            bias_attr=False)
+        bn_name = name + '.bn'
+        self.batch_norm = nn.BatchNorm2d(
+            ch_out,
+            weight_attr=ParamAttr(
+                name=bn_name + '.scale', regularizer=L2Decay(0.)),
             bias_attr=ParamAttr(
-                initializer=fluid.initializer.Constant(0.0),
-                regularizer=L2Decay(0.)))
+                name=bn_name + '.offset', regularizer=L2Decay(0.)))
 
         self.act = act
 
@@ -67,12 +63,18 @@ class ConvBNLayer(fluid.dygraph.Layer):
         out = self.conv(inputs)
         out = self.batch_norm(out)
         if self.act == 'leaky':
-            out = fluid.layers.leaky_relu(x=out, alpha=0.1)
+            out = F.leaky_relu(out, 0.1)
         return out
 
 
-class DownSample(fluid.dygraph.Layer):
-    def __init__(self, ch_in, ch_out, filter_size=3, stride=2, padding=1):
+class DownSample(nn.Layer):
+    def __init__(self,
+                 ch_in,
+                 ch_out,
+                 filter_size=3,
+                 stride=2,
+                 padding=1,
+                 name=None):
 
         super(DownSample, self).__init__()
 
@@ -81,7 +83,8 @@ class DownSample(fluid.dygraph.Layer):
             ch_out=ch_out,
             filter_size=filter_size,
             stride=stride,
-            padding=padding)
+            padding=padding,
+            name=name)
         self.ch_out = ch_out
 
     def forward(self, inputs):
@@ -89,35 +92,43 @@ class DownSample(fluid.dygraph.Layer):
         return out
 
 
-class BasicBlock(fluid.dygraph.Layer):
-    def __init__(self, ch_in, ch_out):
+class BasicBlock(nn.Layer):
+    def __init__(self, ch_in, ch_out, name=None):
         super(BasicBlock, self).__init__()
 
         self.conv1 = ConvBNLayer(
-            ch_in=ch_in, ch_out=ch_out, filter_size=1, stride=1, padding=0)
+            ch_in=ch_in,
+            ch_out=ch_out,
+            filter_size=1,
+            stride=1,
+            padding=0,
+            name=name + '.0')
         self.conv2 = ConvBNLayer(
             ch_in=ch_out,
             ch_out=ch_out * 2,
             filter_size=3,
             stride=1,
-            padding=1)
+            padding=1,
+            name=name + '.1')
 
     def forward(self, inputs):
         conv1 = self.conv1(inputs)
         conv2 = self.conv2(conv1)
-        out = fluid.layers.elementwise_add(x=inputs, y=conv2, act=None)
+        out = paddle.add(x=inputs, y=conv2)
         return out
 
 
-class LayerWarp(fluid.dygraph.Layer):
-    def __init__(self, ch_in, ch_out, count):
-        super(LayerWarp, self).__init__()
+class Blocks(nn.Layer):
+    def __init__(self, ch_in, ch_out, count, name=None):
+        super(Blocks, self).__init__()
 
-        self.basicblock0 = BasicBlock(ch_in, ch_out)
+        self.basicblock0 = BasicBlock(ch_in, ch_out, name=name + '.0')
         self.res_out_list = []
         for i in range(1, count):
-            res_out = self.add_sublayer("basic_block_%d" % (i),
-                                        BasicBlock(ch_out * 2, ch_out))
+            block_name = '{}.{}'.format(name, i)
+            res_out = self.add_sublayer(
+                block_name, BasicBlock(
+                    ch_out * 2, ch_out, name=block_name))
             self.res_out_list.append(res_out)
         self.ch_out = ch_out
 
@@ -131,76 +142,84 @@ class LayerWarp(fluid.dygraph.Layer):
 DarkNet_cfg = {53: ([1, 2, 8, 8, 4])}
 
 
-class DarkNet(fluid.dygraph.Layer):
-    """DarkNet model from
-    `"YOLOv3: An Incremental Improvement" <https://arxiv.org/abs/1804.02767>`_
-
-    Args:
-        num_layers (int): layer number of DarkNet, only 53 supported currently, default: 53.
-        ch_in (int): channel number of input data, default 3.
-    """
-
-    def __init__(self, num_layers=53, ch_in=3):
+class DarkNet(nn.Layer):
+    def __init__(self,
+                 depth=53,
+                 freeze_at=-1,
+                 return_idx=[2, 3, 4],
+                 num_stages=5):
         super(DarkNet, self).__init__()
-        assert num_layers in DarkNet_cfg.keys(), \
-            "only support num_layers in {} currently" \
-            .format(DarkNet_cfg.keys())
-        self.stages = DarkNet_cfg[num_layers]
-        self.stages = self.stages[0:5]
+        self.depth = depth
+        self.freeze_at = freeze_at
+        self.return_idx = return_idx
+        self.num_stages = num_stages
+        self.stages = DarkNet_cfg[self.depth][0:num_stages]
 
         self.conv0 = ConvBNLayer(
-            ch_in=ch_in, ch_out=32, filter_size=3, stride=1, padding=1)
+            ch_in=3,
+            ch_out=32,
+            filter_size=3,
+            stride=1,
+            padding=1,
+            name='yolo_input')
 
-        self.downsample0 = DownSample(ch_in=32, ch_out=32 * 2)
-        self.darknet53_conv_block_list = []
+        self.downsample0 = DownSample(
+            ch_in=32, ch_out=32 * 2, name='yolo_input.downsample')
+
+        self.darknet_conv_block_list = []
         self.downsample_list = []
         ch_in = [64, 128, 256, 512, 1024]
         for i, stage in enumerate(self.stages):
-            conv_block = self.add_sublayer("stage_%d" % (i),
-                                           LayerWarp(
-                                               int(ch_in[i]), 32 * (2**i),
-                                               stage))
-            self.darknet53_conv_block_list.append(conv_block)
-        for i in range(len(self.stages) - 1):
+            name = 'stage_{}'.format(i)
+            conv_block = self.add_sublayer(
+                name, Blocks(
+                    int(ch_in[i]), 32 * (2**i), stage, name=name))
+            self.darknet_conv_block_list.append(conv_block)
+        for i in range(num_stages - 1):
+            down_name = 'stage_{}.downsample'.format(i)
             downsample = self.add_sublayer(
-                "stage_%d_downsample" % i,
+                down_name,
                 DownSample(
-                    ch_in=32 * (2**(i + 1)), ch_out=32 * (2**(i + 2))))
+                    ch_in=32 * (2**(i + 1)),
+                    ch_out=32 * (2**(i + 2)),
+                    name=down_name))
             self.downsample_list.append(downsample)
 
-    def forward(self, inputs):
-
-        out = self.conv0(inputs)
+    def forward(self, x):
+        out = self.conv0(x)
         out = self.downsample0(out)
         blocks = []
-        for i, conv_block_i in enumerate(self.darknet53_conv_block_list):
+        for i, conv_block_i in enumerate(self.darknet_conv_block_list):
             out = conv_block_i(out)
-            blocks.append(out)
-            if i < len(self.stages) - 1:
+            if i == self.freeze_at:
+                out.stop_gradient = True
+            if i in self.return_idx:
+                blocks.append(out)
+            if i < self.num_stages - 1:
                 out = self.downsample_list[i](out)
-        return blocks[-1:-4:-1]
+        return blocks
 
 
-def _darknet(num_layers=53, input_channels=3, pretrained=True):
-    model = DarkNet(num_layers, input_channels)
+def _darknet(depth=53, pretrained=True):
+    model = DarkNet(depth)
     if pretrained:
-        assert num_layers in pretrain_infos.keys(), \
+        assert depth in pretrain_infos.keys(), \
                 "DarkNet{} do not have pretrained weights now, " \
                 "pretrained should be set as False".format(num_layers)
-        weight_path = get_weights_path_from_url(*(pretrain_infos[num_layers]))
+        weight_path = get_weights_path_from_url(*(pretrain_infos[depth]))
         assert weight_path.endswith('.pdparams'), \
                 "suffix of weight must be .pdparams"
-        weight_dict, _ = fluid.load_dygraph(weight_path[:-9])
-        model.set_dict(weight_dict)
+        params = paddle.load(weight_path)
+        model.load_dict(params)
     return model
 
 
-def darknet53(input_channels=3, pretrained=True):
+def darknet53(pretrained=True):
     """DarkNet 53-layer model
     
     Args:
-        input_channels (bool): channel number of input data, default 3. 
         pretrained (bool): If True, returns a model pre-trained on ImageNet,
             default True.
     """
-    return _darknet(53, input_channels, pretrained)
+    return _darknet(53, pretrained)
+

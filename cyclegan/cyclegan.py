@@ -19,12 +19,13 @@ from __future__ import print_function
 import numpy as np
 
 import paddle
-import paddle.fluid as fluid
+import paddle.nn.functional as F
+from paddle.nn import Layer
 
 from layers import ConvBN, DeConvBN
 
 
-class ResnetBlock(fluid.dygraph.Layer):
+class ResnetBlock(Layer):
     def __init__(self, dim, dropout=False):
         super(ResnetBlock, self).__init__()
         self.dropout = dropout
@@ -32,16 +33,16 @@ class ResnetBlock(fluid.dygraph.Layer):
         self.conv1 = ConvBN(dim, dim, 3, 1, act=None)
 
     def forward(self, inputs):
-        out_res = fluid.layers.pad2d(inputs, [1, 1, 1, 1], mode="reflect")
+        out_res = F.pad2d(inputs, [1, 1, 1, 1], mode="reflect")
         out_res = self.conv0(out_res)
         if self.dropout:
-            out_res = fluid.layers.dropout(out_res, dropout_prob=0.5)
-        out_res = fluid.layers.pad2d(out_res, [1, 1, 1, 1], mode="reflect")
+            out_res = F.dropout(out_res, p=0.5, mode='downscale_in_infer')
+        out_res = F.pad2d(out_res, [1, 1, 1, 1], mode="reflect")
         out_res = self.conv1(out_res)
         return out_res + inputs
 
 
-class ResnetGenerator(fluid.dygraph.Layer):
+class ResnetGenerator(Layer):
     def __init__(self, input_channel, n_blocks=9, dropout=False):
         super(ResnetGenerator, self).__init__()
 
@@ -65,7 +66,7 @@ class ResnetGenerator(fluid.dygraph.Layer):
             32, input_channel, 7, 1, norm=False, act=False, use_bias=True)
 
     def forward(self, inputs):
-        pad_input = fluid.layers.pad2d(inputs, [3, 3, 3, 3], mode="reflect")
+        pad_input = F.pad2d(inputs, [3, 3, 3, 3], mode="reflect")
         y = self.conv0(pad_input)
         y = self.conv1(y)
         y = self.conv2(y)
@@ -73,13 +74,13 @@ class ResnetGenerator(fluid.dygraph.Layer):
             y = resnet_block(y)
         y = self.deconv0(y)
         y = self.deconv1(y)
-        y = fluid.layers.pad2d(y, [3, 3, 3, 3], mode="reflect")
+        y = F.pad2d(y, [3, 3, 3, 3], mode="reflect")
         y = self.conv3(y)
-        y = fluid.layers.tanh(y)
+        y = paddle.tanh(y)
         return y
 
 
-class NLayerDiscriminator(fluid.dygraph.Layer):
+class NLayerDiscriminator(Layer):
     def __init__(self, input_channel, d_dims=64, d_nlayers=3):
         super(NLayerDiscriminator, self).__init__()
         self.conv0 = ConvBN(
@@ -186,10 +187,10 @@ class GLoss(paddle.nn.Layer):
     def forward(self, input_A, input_B, fake_A, fake_B, cyc_A, cyc_B, idt_A,
                 idt_B, valid_A, valid_B):
         def mse(a, b):
-            return fluid.layers.reduce_mean(fluid.layers.square(a - b))
+            return paddle.reduce_mean(paddle.square(a - b))
 
         def mae(a, b):  # L1Loss
-            return fluid.layers.reduce_mean(fluid.layers.abs(a - b))
+            return paddle.reduce_mean(paddle.abs(a - b))
 
         g_A_loss = mse(valid_A, 1.)
         g_B_loss = mse(valid_B, 1.)
@@ -225,6 +226,6 @@ class DLoss(paddle.nn.Layer):
         super(DLoss, self).__init__()
 
     def forward(self, real, fake):
-        loss = fluid.layers.square(fake) + fluid.layers.square(real - 1.)
-        loss = fluid.layers.reduce_mean(loss / 2.0)
+        loss = paddle.square(fake) + paddle.square(real - 1.)
+        loss = paddle.reduce_mean(loss / 2.0)
         return loss
