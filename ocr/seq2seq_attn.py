@@ -18,8 +18,7 @@ import numpy as np
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
-#from paddle.text import RNNCell, RNN, DynamicDecode
-from paddle.text import DynamicDecode, BeamSearchDecoder
+from paddle.nn import BeamSearchDecoder, dynamic_decode
 
 
 class ConvBNPool(paddle.nn.Layer):
@@ -92,44 +91,6 @@ class CNN(paddle.nn.Layer):
         return self.net(inputs)
 
 
-#class GRUCell(RNNCell):
-#    def __init__(self,
-#                 input_size,
-#                 hidden_size,
-#                 param_attr=None,
-#                 bias_attr=None,
-#                 gate_activation='sigmoid',
-#                 candidate_activation='tanh',
-#                 origin_mode=False):
-#        super(GRUCell, self).__init__()
-#        self.hidden_size = hidden_size
-#        self.fc_layer = nn.Linear(
-#            input_size,
-#            hidden_size * 3,
-#            weight_attr=param_attr,
-#            bias_attr=False)
-#
-#        self.gru_unit = fluid.dygraph.GRUUnit(
-#            hidden_size * 3,
-#            param_attr=param_attr,
-#            bias_attr=bias_attr,
-#            activation=candidate_activation,
-#            gate_activation=gate_activation,
-#            origin_mode=origin_mode)
-#
-#    def forward(self, inputs, states):
-#        # step_outputs, new_states = cell(step_inputs, states)
-#        # for GRUCell, `step_outputs` and `new_states` both are hidden
-#        x = self.fc_layer(inputs)
-#        hidden, _, _ = self.gru_unit(x, states)
-#        return hidden, hidden
-#
-#    @property
-#    def state_shape(self):
-#        return [self.hidden_size]
-#
-
-
 class Encoder(paddle.nn.Layer):
     def __init__(
             self,
@@ -142,27 +103,17 @@ class Encoder(paddle.nn.Layer):
 
         self.backbone = CNN(in_ch=in_channel, is_test=is_test)
 
-        para_attr = paddle.ParamAttr(
-            initializer=paddle.nn.initializer.Normal(0.0, 0.02))
         bias_attr = paddle.ParamAttr(
             initializer=paddle.nn.initializer.Normal(0.0, 0.02),
             learning_rate=2.0)
-        self.gru_fwd = nn.RNN(
-            cell=nn.GRUCell(
-                input_size=128 * 6, hidden_size=rnn_hidden_size),
-            #            param_attr=para_attr,
-            #            bias_attr=bias_attr,
-            #            candidate_activation='relu'),
-            is_reverse=False,
-            time_major=False)
-        self.gru_bwd = nn.RNN(
-            cell=nn.GRUCell(
-                input_size=128 * 6, hidden_size=rnn_hidden_size),
-            #            param_attr=para_attr,
-            #            bias_attr=bias_attr,
-            #            candidate_activation='relu'),
-            is_reverse=True,
-            time_major=False)
+        self.gru_fwd = nn.RNN(cell=nn.GRUCell(
+            input_size=128 * 6, hidden_size=rnn_hidden_size),
+                              is_reverse=False,
+                              time_major=False)
+        self.gru_bwd = nn.RNN(cell=nn.GRUCell(
+            input_size=128 * 6, hidden_size=rnn_hidden_size),
+                              is_reverse=True,
+                              time_major=False)
         self.encoded_proj_fc = nn.Linear(
             rnn_hidden_size * 2, decoder_size, bias_attr=False)
 
@@ -205,7 +156,7 @@ class Attention(paddle.nn.Layer):
         att_scores = F.softmax(att_scores)
 
         context = paddle.multiply(encoder_vec, att_scores, axis=0)
-        context = paddle.reduce_sum(context, dim=1)
+        context = paddle.sum(context, axis=1)
         return context
 
 
@@ -290,7 +241,7 @@ class Seq2SeqAttInferModel(Seq2SeqAttModel):
             beam_size=beam_size,
             embedding_fn=self.embedding,
             output_fn=self.decoder.fc)
-        self.infer_decoder = DynamicDecode(
+        self.infer_decoder = dynamic_decode(
             decoder, max_step_num=max_out_len, is_test=True)
 
     def forward(self, inputs, *args):
