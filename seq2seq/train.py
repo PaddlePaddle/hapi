@@ -43,12 +43,7 @@ def do_train(args):
         Input(
             [None, None], "int64", name="trg_word"),
     ]
-    labels = [
-        Input(
-            [None], "int64", name="trg_length"),
-        Input(
-            [None, None, 1], "int64", name="label"),
-    ]
+    labels = [Input([None, None, 1], "int64", name="label"), ]
 
     # def dataloader
     [train_loader, eval_loader], pad_id = create_data_loader(args, device)
@@ -59,7 +54,7 @@ def do_train(args):
                 args.dropout, pad_id),
         inputs=inputs,
         labels=labels)
-    grad_clip = paddle.nn.GradientClipByGlobalNorm(args.max_grad_norm)
+    grad_clip = paddle.nn.ClipGradByGlobalNorm(args.max_grad_norm)
     optimizer = paddle.optimizer.Adam(
         learning_rate=args.learning_rate,
         parameters=model.parameters(),
@@ -67,6 +62,7 @@ def do_train(args):
 
     ppl_metric = PPL(reset_freq=100)  # ppl for every 100 batches
     model.prepare(optimizer, CrossEntropyCriterion(), ppl_metric)
+
     model.fit(train_data=train_loader,
               eval_data=eval_loader,
               epochs=args.max_epoch,

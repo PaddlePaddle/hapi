@@ -17,7 +17,7 @@ import functools
 
 import paddle
 from paddle.metric import Metric
-from paddle.text import BasicLSTMCell
+from paddle.nn import LSTMCell
 
 
 class TrainCallback(paddle.callbacks.ProgBarLogger):

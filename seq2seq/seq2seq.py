@@ -60,7 +60,6 @@ class Encoder(Layer):
         inputs = self.embedder(sequence)
         encoder_output, encoder_state = self.lstm(
             inputs, sequence_length=sequence_length)
-
         return encoder_output, encoder_state
 
 
@@ -82,6 +81,8 @@ class AttentionLayer(Layer):
 
     def forward(self, hidden, encoder_output, encoder_padding_mask):
         query = self.input_proj(hidden)
+        # query = hidden
+        # encoder_output = self.input_proj(encoder_output)
         attn_scores = paddle.matmul(
             paddle.unsqueeze(query, [1]), encoder_output, transpose_y=True)
         if encoder_padding_mask is not None:
@@ -100,8 +101,10 @@ class DecoderCell(RNNCellBase):
                  input_size,
                  hidden_size,
                  dropout_prob=0.,
-                 init_scale=0.1):
+                 init_scale=0.1,
+                 attention=True):
         super(DecoderCell, self).__init__()
+        self.attention = attention
         if dropout_prob > 0:
             self.dropout = Dropout(dropout_prob)
         else:
@@ -118,8 +121,7 @@ class DecoderCell(RNNCellBase):
                 step_input,
                 states,
                 encoder_output=None,
-                encoder_padding_mask=None,
-                attention=True):
+                encoder_padding_mask=None):
         lstm_states, input_feed = states
         new_lstm_states = []
         step_input = paddle.concat([step_input, input_feed], 1)
@@ -129,7 +131,7 @@ class DecoderCell(RNNCellBase):
                 out = self.dropout(out)
             step_input = out
             new_lstm_states.append(new_lstm_state)
-        if attention:
+        if self.attention:
             out = self.attention_layer(step_input, encoder_output,
                                        encoder_padding_mask)
         else:
@@ -155,8 +157,9 @@ class Decoder(Layer):
             pad_id,
             weight_attr=paddle.ParamAttr(initializer=I.Uniform(
                 low=-init_scale, high=init_scale)))
-        self.lstm_attention = RNN(DecoderCell(
-            num_layers, embed_dim, hidden_size, dropout_prob, init_scale),
+        self.lstm_attention = RNN(DecoderCell(num_layers, embed_dim,
+                                              hidden_size, dropout_prob,
+                                              init_scale, attention),
                                   is_reverse=False,
                                   time_major=False)
         self.output_layer = Linear(
@@ -176,8 +179,7 @@ class Decoder(Layer):
             inputs,
             initial_states=decoder_initial_states,
             encoder_output=encoder_output,
-            encoder_padding_mask=encoder_padding_mask,
-            attention=self.attention)
+            encoder_padding_mask=encoder_padding_mask)
         predict = self.output_layer(decoder_output)
         return predict
 
@@ -196,6 +198,7 @@ class Seq2Seq(Layer):
         super(Seq2Seq, self).__init__()
         self.attention = attention
         self.hidden_size = hidden_size
+        self.num_layers = num_layers
         self.pad_id = pad_id
         self.encoder = Encoder(src_vocab_size, embed_dim, hidden_size,
                                num_layers, pad_id, dropout_prob, init_scale)
@@ -206,6 +209,10 @@ class Seq2Seq(Layer):
     def forward(self, src, src_length, trg):
         # encoder
         encoder_output, encoder_final_states = self.encoder(src, src_length)
+        encoder_final_states = [
+            (encoder_final_states[0][i], encoder_final_states[1][i])
+            for i in range(self.num_layers)
+        ]
 
         # decoder initial states
         decoder_initial_states = [
@@ -248,9 +255,13 @@ class Seq2SeqInfer(Seq2Seq):
         self.eos_id = args.pop("eos_id")
         self.beam_size = args.pop("beam_size")
         self.max_out_len = args.pop("max_out_len")
+        self.pad_id = eos_id
+
         super(Seq2SeqInfer, self).__init__(**args)
+        self.max_out_len = max_out_len
         # dynamic decoder for inference
-        decoder = BeamSearchDecoder(
+        self.decoder.lstm_attention.cell.attention = attention
+        self.beam_search_decoder = BeamSearchDecoder(
             self.decoder.lstm_attention.cell,
             start_token=bos_id,
             end_token=eos_id,
@@ -262,10 +273,37 @@ class Seq2SeqInfer(Seq2Seq):
         # encoding
         encoder_output, encoder_final_state = self.encoder(src, src_length)
         # decoder initial states
+        encoder_final_state = [
+            (encoder_final_state[0][i], encoder_final_state[1][i])
+            for i in range(self.num_layers)
+        ]
+
         decoder_initial_states = [
             encoder_final_state,
             self.decoder.lstm_attention.cell.get_initial_states(
                 batch_ref=encoder_output, shape=[self.hidden_size])
         ]
-        rs = dynamic_decode(decoder=decoder, inits=decoder_initial_states)
+        # import pdb; pdb.set_trace()
+        if self.attention:
+            # attention mask to avoid paying attention on padddings
+            encoder_padding_mask = (
+                (src != self.pad_id).astype(paddle.get_default_dtype()) - 1.0
+            ) * 1e9
+            encoder_padding_mask = paddle.unsqueeze(encoder_padding_mask, [1])
+            # Tile the batch dimension with beam_size
+            encoder_output = BeamSearchDecoder.tile_beam_merge_with_batch(
+                encoder_output, self.beam_size)
+            encoder_padding_mask = BeamSearchDecoder.tile_beam_merge_with_batch(
+                encoder_padding_mask, self.beam_size)
+            rs, _ = dynamic_decode(
+                decoder=self.beam_search_decoder,
+                inits=decoder_initial_states,
+                max_step_num=self.max_out_len,
+                encoder_output=encoder_output,
+                encoder_padding_mask=encoder_padding_mask)
+        else:
+            rs, _ = dynamic_decode(
+                decoder=self.beam_search_decoder,
+                inits=decoder_initial_states,
+                max_step_num=self.max_out_len)
         return rs
