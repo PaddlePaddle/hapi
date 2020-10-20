@@ -20,9 +20,7 @@ import argparse
 import numpy as np
 
 import paddle
-from paddle import fluid
-from paddle.fluid.dygraph.parallel import ParallelEnv
-
+from paddle.distributed import ParallelEnv
 from paddle.vision.transforms import Compose
 
 from modeling import tsm_resnet50
@@ -32,24 +30,24 @@ from transforms import *
 from utils import print_arguments
 
 
-def make_optimizer(step_per_epoch, parameter_list=None):
-    boundaries = [e * step_per_epoch for e in [40, 60]]
+def make_optimizer(step_per_epoch, parameters=None):
+    boundaries = [x * step_per_epoch for x in [2, 4]]
     values = [FLAGS.lr * (0.1**i) for i in range(len(boundaries) + 1)]
 
-    learning_rate = fluid.layers.piecewise_decay(
-        boundaries=boundaries, values=values)
-    optimizer = fluid.optimizer.Momentum(
+    learning_rate = paddle.optimizer.lr.PiecewiseDecay(
+            boundaries=boundaries, values=values)
+    optimizer = paddle.optimizer.Momentum(
         learning_rate=learning_rate,
-        regularization=fluid.regularizer.L2Decay(1e-4),
+        weight_decay=1e-4,
         momentum=0.9,
-        parameter_list=parameter_list)
+        parameters=parameters)
 
     return optimizer
 
 
 def main():
     device = paddle.set_device(FLAGS.device)
-    paddle.disable_static(device) if FLAGS.dynamic else None
+    paddle.enable_static() if not FLAGS.dynamic else None
 
     train_transform = Compose([
         GroupScale(), GroupMultiScaleCrop(), GroupRandomCrop(),
