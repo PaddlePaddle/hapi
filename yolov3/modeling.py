@@ -203,7 +203,7 @@ class YOLOv3(nn.Layer):
 
             if idx < 2:
                 route = self.route_blocks[idx](route)
-                route = F.resize_nearest(route, scale=2)
+                route = F.upsample(route, scale_factor=2)
 
             if self.model_mode != 'train':
                 anchor_mask = self.anchor_masks[idx]
@@ -211,7 +211,7 @@ class YOLOv3(nn.Layer):
                 for m in anchor_mask:
                     mask_anchors.append(self.anchors[2 * m])
                     mask_anchors.append(self.anchors[2 * m + 1])
-                b, s = F.yolo_box(
+                b, s = paddle.fluid.layers.yolo_box(
                     x=block_out,
                     img_size=img_shape,
                     anchors=mask_anchors,
@@ -273,7 +273,7 @@ class YoloLoss(nn.Layer):
         for idx, out in enumerate(outputs):
             if idx == 3: break  # debug
             anchor_mask = self.anchor_masks[idx]
-            loss = F.yolov3_loss(
+            loss = paddle.fluid.layers.yolov3_loss(
                 x=out,
                 gt_box=gt_box,
                 gt_label=gt_label,
@@ -284,7 +284,7 @@ class YoloLoss(nn.Layer):
                 class_num=self.num_classes,
                 ignore_thresh=self.ignore_thresh,
                 use_label_smooth=False)
-            loss = paddle.reduce_mean(loss)
+            loss = paddle.mean(loss)
             losses.append(loss)
             downsample //= 2
         return losses

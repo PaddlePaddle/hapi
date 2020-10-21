@@ -98,7 +98,7 @@ class BottleneckBlock(nn.Layer):
         self._num_channels_out = int(num_filters * 4)
 
     def forward(self, inputs):
-        shifts = F.temporal_shift(inputs, self.seg_num, 1.0 / 8)
+        shifts = paddle.fluid.layers.temporal_shift(inputs, self.seg_num, 1.0 / 8)
         y = self.conv0(shifts)
         conv1 = self.conv1(y)
         conv2 = self.conv2(conv1)
@@ -106,7 +106,7 @@ class BottleneckBlock(nn.Layer):
             short = inputs
         else:
             short = self.short(inputs)
-        y = paddle.elementwise_add(x=short, y=conv2, act="relu")
+        y = F.relu(short + conv2)
         return y
 
 
@@ -180,7 +180,7 @@ class TSM_ResNet(nn.Layer):
         y = F.adaptive_avg_pool2d(y, output_size=1)
         y = F.dropout(y, p=0.5)
         y = paddle.reshape(y, [-1, self.seg_num, y.shape[1]])
-        y = paddle.reduce_mean(y, dim=1)
+        y = paddle.mean(y, axis=1)
         y = paddle.reshape(y, shape=[-1, 2048])
         y = self.out(y)
         return y
