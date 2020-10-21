@@ -48,10 +48,8 @@ python eval.py --init_model=checkpoint/final
 
 - 预测
 
-目前不支持动态图预测
-
 ```
-python predict.py --init_model=checkpoint/final --image_path=images/ --static=True --beam_size=3
+python predict.py --init_model=checkpoint/final --image_path=images/ --beam_size=3
 ```
 
 预测结果如下:
