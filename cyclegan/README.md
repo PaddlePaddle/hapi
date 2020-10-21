@@ -80,16 +80,16 @@ data/cityscapes/testA/412_A.jpg
 
 ### 训练
 
-在GPU单卡上静态图训练:
-
-```
-env CUDA_VISIBLE_DEVICES=0 python train.py --checkpoint_path=checkpoint_static
-```
-
 在GPU单卡上动态图训练:
 
 ```
-env CUDA_VISIBLE_DEVICES=0 python train.py --dynamic --checkpoint_path=checkpoint_dynamic
+env CUDA_VISIBLE_DEVICES=0 python train.py --checkpoint_path=checkpoint_dynamic
+```
+
+在GPU单卡上静态图训练:
+
+```
+env CUDA_VISIBLE_DEVICES=0 python train.py --static --checkpoint_path=checkpoint_static
 ```
 
 

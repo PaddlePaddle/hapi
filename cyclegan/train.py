@@ -48,8 +48,8 @@ def opt(parameters):
 
 
 def main():
+    paddle.enable_static(place) if FLAGS.static else None
     place = paddle.set_device(FLAGS.device)
-    paddle.disable_static(place) if FLAGS.dynamic else None
 
     im_shape = [None, 3, 256, 256]
     input_A = Input(im_shape, 'float32', 'input_A')
@@ -108,8 +108,8 @@ def main():
 
     for epoch in range(FLAGS.epoch):
         for i, (data_A, data_B) in enumerate(zip(loader_A, loader_B)):
-            data_A = data_A[0][0] if not FLAGS.dynamic else data_A[0]
-            data_B = data_B[0][0] if not FLAGS.dynamic else data_B[0]
+            data_A = data_A[0][0] if not FLAGS.static else data_A[0]
+            data_B = data_B[0][0] if not FLAGS.static else data_B[0]
             start = time.time()
 
             fake_B = g_AB.test_batch(data_A)[0]
@@ -132,7 +132,7 @@ def main():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("CycleGAN Training on Cityscapes")
     parser.add_argument(
-        "-d", "--dynamic", action='store_true', help="Enable dygraph mode")
+        "-d", "--static", action='store_true', help="Enable dygraph mode")
     parser.add_argument(
         "-p",
         "--device",

@@ -17,7 +17,6 @@ import argparse
 import functools
 
 import paddle
-import paddle.fluid as fluid
 
 from paddle.static import InputSpec as Input
 from paddle.vision.transforms import BatchCompose
@@ -41,13 +40,13 @@ add_arg('decoder_size',      int,   128,                "Decoder size.")
 add_arg('embedding_dim',     int,   128,                "Word vector dim.")
 add_arg('num_classes',       int,   95,                 "Number classes.")
 add_arg('beam_size',         int,   0,                  "If set beam size, will use beam search.")
-add_arg('dynamic',           bool,  False,              "Whether to use dygraph.")
+add_arg('static',            bool,  False,              "Whether to use dygraph.")
 # yapf: enable
 
 
 def main(FLAGS):
+    paddle.enable_static(device) if FLAGS.static else None
     device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
 
     # yapf: disable
     inputs = [
@@ -79,7 +78,7 @@ def main(FLAGS):
         batch_size=FLAGS.batch_size,
         drop_last=False,
         shuffle=False)
-    test_loader = fluid.io.DataLoader(
+    test_loader = paddle.io.DataLoader(
         test_dataset,
         batch_sampler=test_sampler,
         places=device,
@@ -94,7 +93,7 @@ def main(FLAGS):
 
 def beam_search(FLAGS):
     device = set_device("gpu" if FLAGS.use_gpu else "cpu")
-    fluid.enable_dygraph(device) if FLAGS.dynamic else None
+    paddle.enable_static(device) if FLAGS.static else None
 
     # yapf: disable
     inputs = [
@@ -128,7 +127,7 @@ def beam_search(FLAGS):
         batch_size=FLAGS.batch_size,
         drop_last=False,
         shuffle=False)
-    test_loader = fluid.io.DataLoader(
+    test_loader = paddle.io.DataLoader(
         test_dataset,
         batch_sampler=test_sampler,
         places=device,

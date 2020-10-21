@@ -28,14 +28,14 @@ export CUDA_VISIBLE_DEVICES=0
 python train.py
 ```
 
-更多参数可以通过`--help`查看。
+默认采用动态图，更多参数可以通过`--help`查看。
 
 
-- 动静切换
+- 切换静态图
 
 
 ```
-python train.py --dynamic=True
+python train.py --static=True
 ```
 
 
@@ -51,7 +51,7 @@ python eval.py --init_model=checkpoint/final
 目前不支持动态图预测
 
 ```
-python predict.py --init_model=checkpoint/final --image_path=images/ --dynamic=False --beam_size=3
+python predict.py --init_model=checkpoint/final --image_path=images/ --static=True --beam_size=3
 ```
 
 预测结果如下:

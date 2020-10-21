@@ -16,11 +16,9 @@ from __future__ import print_function
 import numpy as np
 
 import paddle
-import paddle.fluid as fluid
-import paddle.fluid.layers as layers
-from paddle.fluid.layers import BeamSearchDecoder
-
-from paddle.text import RNNCell, RNN, DynamicDecode
+import paddle.nn as nn
+import paddle.nn.functional as F
+from paddle.nn import BeamSearchDecoder, dynamic_decode
 
 
 class ConvBNPool(paddle.nn.Layer):
@@ -36,103 +34,61 @@ class ConvBNPool(paddle.nn.Layer):
 
         filter_size = 3
         std = (2.0 / (filter_size**2 * in_ch))**0.5
-        param_0 = fluid.ParamAttr(
-            initializer=fluid.initializer.Normal(0.0, std))
+        param_0 = paddle.ParamAttr(
+            initializer=paddle.nn.initializer.Normal(0.0, std))
 
         std = (2.0 / (filter_size**2 * out_ch))**0.5
-        param_1 = fluid.ParamAttr(
-            initializer=fluid.initializer.Normal(0.0, std))
+        param_1 = paddle.ParamAttr(
+            initializer=paddle.nn.initializer.Normal(0.0, std))
 
-        self.conv0 = fluid.dygraph.Conv2D(
-            in_ch,
-            out_ch,
-            3,
-            padding=1,
-            param_attr=param_0,
-            bias_attr=False,
-            act=None,
-            use_cudnn=use_cudnn)
-        self.bn0 = fluid.dygraph.BatchNorm(out_ch, act=act)
-        self.conv1 = fluid.dygraph.Conv2D(
-            out_ch,
-            out_ch,
-            filter_size=3,
-            padding=1,
-            param_attr=param_1,
-            bias_attr=False,
-            act=None,
-            use_cudnn=use_cudnn)
-        self.bn1 = fluid.dygraph.BatchNorm(out_ch, act=act)
+        net = [
+            nn.Conv2d(
+                in_ch,
+                out_ch,
+                3,
+                padding=1,
+                weight_attr=param_0,
+                bias_attr=False),
+            nn.BatchNorm2d(out_ch),
+        ]
+        if act == 'relu':
+            net += [nn.ReLU()]
+
+        net += [
+            nn.Conv2d(
+                out_ch,
+                out_ch,
+                kernel_size=3,
+                padding=1,
+                weight_attr=param_1,
+                bias_attr=False),
+            nn.BatchNorm2d(out_ch),
+        ]
+        if act == 'relu':
+            net += [nn.ReLU()]
 
         if self.pool:
-            self.pool = fluid.dygraph.Pool2D(
-                pool_size=2,
-                pool_type='max',
-                pool_stride=2,
-                use_cudnn=use_cudnn,
-                ceil_mode=True)
+            net += [nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)]
+        self.net = nn.Sequential(*net)
 
     def forward(self, inputs):
-        out = self.conv0(inputs)
-        out = self.bn0(out)
-        out = self.conv1(out)
-        out = self.bn1(out)
-        if self.pool:
-            out = self.pool(out)
-        return out
+        return self.net(inputs)
 
 
 class CNN(paddle.nn.Layer):
     def __init__(self, in_ch=1, is_test=False):
         super(CNN, self).__init__()
-        self.conv_bn1 = ConvBNPool(in_ch, 16)
-        self.conv_bn2 = ConvBNPool(16, 32)
-        self.conv_bn3 = ConvBNPool(32, 64)
-        self.conv_bn4 = ConvBNPool(64, 128, pool=False)
+        net = [
+            ConvBNPool(in_ch, 16),
+            ConvBNPool(16, 32),
+            ConvBNPool(32, 64),
+            ConvBNPool(
+                64, 128, pool=False),
+        ]
+        self.net = nn.Sequential(*net)
 
     def forward(self, inputs):
-        conv = self.conv_bn1(inputs)
-        conv = self.conv_bn2(conv)
-        conv = self.conv_bn3(conv)
-        conv = self.conv_bn4(conv)
-        return conv
-
-
-class GRUCell(RNNCell):
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 param_attr=None,
-                 bias_attr=None,
-                 gate_activation='sigmoid',
-                 candidate_activation='tanh',
-                 origin_mode=False):
-        super(GRUCell, self).__init__()
-        self.hidden_size = hidden_size
-        self.fc_layer = fluid.dygraph.Linear(
-            input_size,
-            hidden_size * 3,
-            param_attr=param_attr,
-            bias_attr=False)
-
-        self.gru_unit = fluid.dygraph.GRUUnit(
-            hidden_size * 3,
-            param_attr=param_attr,
-            bias_attr=bias_attr,
-            activation=candidate_activation,
-            gate_activation=gate_activation,
-            origin_mode=origin_mode)
-
-    def forward(self, inputs, states):
-        # step_outputs, new_states = cell(step_inputs, states)
-        # for GRUCell, `step_outputs` and `new_states` both are hidden
-        x = self.fc_layer(inputs)
-        hidden, _, _ = self.gru_unit(x, states)
-        return hidden, hidden
-
-    @property
-    def state_shape(self):
-        return [self.hidden_size]
+        return self.net(inputs)
 
 
 class Encoder(paddle.nn.Layer):
@@ -147,41 +103,31 @@ class Encoder(paddle.nn.Layer):
 
         self.backbone = CNN(in_ch=in_channel, is_test=is_test)
 
-        para_attr = fluid.ParamAttr(
-            initializer=fluid.initializer.Normal(0.0, 0.02))
-        bias_attr = fluid.ParamAttr(
-            initializer=fluid.initializer.Normal(0.0, 0.02), learning_rate=2.0)
-        self.gru_fwd = RNN(cell=GRUCell(
-            input_size=128 * 6,
-            hidden_size=rnn_hidden_size,
-            param_attr=para_attr,
-            bias_attr=bias_attr,
-            candidate_activation='relu'),
-                           is_reverse=False,
-                           time_major=False)
-        self.gru_bwd = RNN(cell=GRUCell(
-            input_size=128 * 6,
-            hidden_size=rnn_hidden_size,
-            param_attr=para_attr,
-            bias_attr=bias_attr,
-            candidate_activation='relu'),
-                           is_reverse=True,
-                           time_major=False)
-        self.encoded_proj_fc = fluid.dygraph.Linear(
+        bias_attr = paddle.ParamAttr(
+            initializer=paddle.nn.initializer.Normal(0.0, 0.02),
+            learning_rate=2.0)
+        self.gru_fwd = nn.RNN(cell=nn.GRUCell(
+            input_size=128 * 6, hidden_size=rnn_hidden_size),
+                              is_reverse=False,
+                              time_major=False)
+        self.gru_bwd = nn.RNN(cell=nn.GRUCell(
+            input_size=128 * 6, hidden_size=rnn_hidden_size),
+                              is_reverse=True,
+                              time_major=False)
+        self.encoded_proj_fc = nn.Linear(
             rnn_hidden_size * 2, decoder_size, bias_attr=False)
 
     def forward(self, inputs):
         conv_features = self.backbone(inputs)
-        conv_features = fluid.layers.transpose(
-            conv_features, perm=[0, 3, 1, 2])
+        conv_features = paddle.transpose(conv_features, perm=[0, 3, 1, 2])
 
         n, w, c, h = conv_features.shape
-        seq_feature = fluid.layers.reshape(conv_features, [0, -1, c * h])
+        seq_feature = paddle.reshape(conv_features, [0, -1, c * h])
 
         gru_fwd, _ = self.gru_fwd(seq_feature)
         gru_bwd, _ = self.gru_bwd(seq_feature)
 
-        encoded_vector = fluid.layers.concat(input=[gru_fwd, gru_bwd], axis=2)
+        encoded_vector = paddle.concat([gru_fwd, gru_bwd], axis=2)
         encoded_proj = self.encoded_proj_fc(encoded_vector)
         return gru_bwd, encoded_vector, encoded_proj
 
@@ -194,39 +140,37 @@ class Attention(paddle.nn.Layer):
 
     def __init__(self, decoder_size):
         super(Attention, self).__init__()
-        self.fc1 = fluid.dygraph.Linear(
-            decoder_size, decoder_size, bias_attr=False)
-        self.fc2 = fluid.dygraph.Linear(decoder_size, 1, bias_attr=False)
+        self.fc1 = nn.Linear(decoder_size, decoder_size, bias_attr=False)
+        self.fc2 = nn.Linear(decoder_size, 1, bias_attr=False)
 
     def forward(self, encoder_vec, encoder_proj, decoder_state):
         # alignment model, single-layer multilayer perceptron
         decoder_state = self.fc1(decoder_state)
-        decoder_state = fluid.layers.unsqueeze(decoder_state, [1])
+        decoder_state = paddle.unsqueeze(decoder_state, [1])
 
-        e = fluid.layers.elementwise_add(encoder_proj, decoder_state)
-        e = fluid.layers.tanh(e)
+        e = paddle.add(encoder_proj, decoder_state)
+        e = paddle.tanh(e)
 
         att_scores = self.fc2(e)
-        att_scores = fluid.layers.squeeze(att_scores, [2])
-        att_scores = fluid.layers.softmax(att_scores)
+        att_scores = paddle.squeeze(att_scores, [2])
+        att_scores = F.softmax(att_scores)
 
-        context = fluid.layers.elementwise_mul(
-            x=encoder_vec, y=att_scores, axis=0)
-        context = fluid.layers.reduce_sum(context, dim=1)
+        context = paddle.multiply(encoder_vec, att_scores, axis=0)
+        context = paddle.sum(context, axis=1)
         return context
 
 
-class DecoderCell(RNNCell):
+class DecoderCell(nn.RNNCellBase):
     def __init__(self, encoder_size=200, decoder_size=128):
         super(DecoderCell, self).__init__()
         self.attention = Attention(decoder_size)
-        self.gru_cell = GRUCell(
+        self.gru_cell = nn.GRUCell(
             input_size=encoder_size * 2 + decoder_size,
             hidden_size=decoder_size)
 
     def forward(self, current_word, states, encoder_vec, encoder_proj):
         context = self.attention(encoder_vec, encoder_proj, states)
-        decoder_inputs = fluid.layers.concat([current_word, context], axis=1)
+        decoder_inputs = paddle.concat([current_word, context], axis=1)
         hidden, _ = self.gru_cell(decoder_inputs, states)
         return hidden, hidden
 
@@ -234,9 +178,9 @@ class DecoderCell(RNNCell):
 class Decoder(paddle.nn.Layer):
     def __init__(self, num_classes, emb_dim, encoder_size, decoder_size):
         super(Decoder, self).__init__()
-        self.decoder_attention = RNN(DecoderCell(encoder_size, decoder_size))
-        self.fc = fluid.dygraph.Linear(
-            decoder_size, num_classes + 2, act='softmax')
+        self.decoder_attention = nn.RNN(
+            DecoderCell(encoder_size, decoder_size))
+        self.fc = nn.Linear(decoder_size, num_classes + 2)
 
     def forward(self, target, initial_states, encoder_vec, encoder_proj):
         out, _ = self.decoder_attention(
@@ -258,13 +202,10 @@ class Seq2SeqAttModel(paddle.nn.Layer):
             num_classes=None, ):
         super(Seq2SeqAttModel, self).__init__()
         self.encoder = Encoder(in_channle, encoder_size, decoder_size)
-        self.fc = fluid.dygraph.Linear(
-            input_dim=encoder_size,
-            output_dim=decoder_size,
-            bias_attr=False,
-            act='relu')
-        self.embedding = fluid.dygraph.Embedding(
-            [num_classes + 2, emb_dim], dtype='float32')
+        self.fc = nn.Sequential(
+            nn.Linear(
+                encoder_size, decoder_size, bias_attr=False), nn.ReLU())
+        self.embedding = nn.Embedding(num_classes + 2, emb_dim)
         self.decoder = Decoder(num_classes, emb_dim, encoder_size,
                                decoder_size)
 
@@ -300,8 +241,7 @@ class Seq2SeqAttInferModel(Seq2SeqAttModel):
             beam_size=beam_size,
             embedding_fn=self.embedding,
             output_fn=self.decoder.fc)
-        self.infer_decoder = DynamicDecode(
-            decoder, max_step_num=max_out_len, is_test=True)
+        self.max_out_len == max_out_len
 
     def forward(self, inputs, *args):
         gru_backward, encoded_vector, encoded_proj = self.encoder(inputs)
@@ -314,8 +254,10 @@ class Seq2SeqAttInferModel(Seq2SeqAttModel):
             encoded_proj = BeamSearchDecoder.tile_beam_merge_with_batch(
                 encoded_proj, self.beam_size)
         # dynamic decoding with beam search
-        rs, _ = self.infer_decoder(
+        rs, _ = dynamic_decode(
             inits=decoder_boot,
+            max_step_num=self.max_out_len,
+            is_test=True,
             encoder_vec=encoded_vector,
             encoder_proj=encoded_proj)
         return rs
@@ -326,7 +268,10 @@ class WeightCrossEntropy(paddle.nn.Layer):
         super(WeightCrossEntropy, self).__init__()
 
     def forward(self, predict, label, mask):
-        loss = layers.cross_entropy(predict, label=label)
-        loss = layers.elementwise_mul(loss, mask, axis=0)
-        loss = layers.reduce_sum(loss)
+        predict = paddle.flatten(predict, start_axis=0, stop_axis=1)
+        label = paddle.reshape(label, shape=[-1, 1])
+        mask = paddle.reshape(mask, shape=[-1, 1])
+        loss = F.cross_entropy(predict, label=label)
+        loss = paddle.multiply(loss, mask, axis=0)
+        loss = paddle.sum(loss)
         return loss
