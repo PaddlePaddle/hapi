@@ -50,13 +50,14 @@
 高层API默认训练方式和主框架保持一致，采用动态图的训练方式，我们可以使用`paddle.disable_static()`来开启动态图训练模式，用`paddle.enable_static()`开启静态图模式训练。
 
 ```python
-# 设置训练设备环境
-paddle.set_device('gpu')
 # 一行代码切换动态图训练模式
 ## 动态图训练模式
 paddle.disable_static()
 ## 静态图训练模式
 # paddle.enable_static()
+
+# 设置训练设备环境
+paddle.set_device('gpu')
 
 # 声明网络结构
 model = paddle.Model(Mnist())
@@ -93,7 +94,7 @@ class Mnist(paddle.nn.Layer):
     # 定义网络结构的前向计算过程
     def forward(self, inputs):
         outputs = self.fc(inputs)
-        
+
         return outputs
 ```
 
@@ -111,8 +112,8 @@ model = paddle.Model(Mnist())
 optimizer = paddle.optimizer.SGD(learning_rate=0.001,
                                  parameters=model.parameters())
 # 使用高层API，prepare() 完成训练的配置
-model.prepare(optimizer, 
-              paddle.nn.CrossEntropy(), 
+model.prepare(optimizer,
+              paddle.nn.CrossEntropy(),
               paddle.metricAccuracy())
 ```
 
@@ -208,18 +209,18 @@ model = resnet50(pretrained=False)
 train_dataset = Cifar10(mode='train')
 val_dataset = Cifar10(mode='test')
 # 定义优化器
-optimizer = Momentum(learning_rate=0.01, 
+optimizer = Momentum(learning_rate=0.01,
                      momentum=0.9,
                      weight_decay=L2Decay(1e-4),
                      parameters=model.parameters())
 # 进行训练前准备
 model.prepare(optimizer, CrossEntropy(), Accuracy(topk=(1, 5)))
 # 启动训练
-model.fit(train_dataset, 
-          val_dataset, 
-          epochs=50, 
-          batch_size=64, 
-          save_dir="./output", 
+model.fit(train_dataset,
+          val_dataset,
+          epochs=50,
+          batch_size=64,
+          save_dir="./output",
           num_workers=8)
 ```
 
@@ -238,4 +239,3 @@ model.fit(train_dataset,
 - [transformer](https://github.com/PaddlePaddle/hapi/tree/master/transformer)
 - [seq2seq](https://github.com/PaddlePaddle/hapi/tree/master/seq2seq)
 - [style-transfer](https://github.com/PaddlePaddle/hapi/tree/master/style-transfer)
-
