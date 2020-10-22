@@ -120,12 +120,14 @@ class LoggerCallBack(paddle.callbacks.ProgBarLogger):
 
     def on_eval_batch_end(self, step, logs=None):
         logs = logs or {}
-        logs['loss'] = [l / self.eval_bs for l in logs['loss']]
+        if 'loss ' in logs:
+            logs['loss'] = [l / self.eval_bs for l in logs['loss']]
         super(LoggerCallBack, self).on_eval_batch_end(step, logs)
 
     def on_eval_end(self, logs=None):
         logs = logs or {}
-        logs['loss'] = [l / self.eval_bs for l in logs['loss']]
+        if 'loss ' in logs:
+            logs['loss'] = [l / self.eval_bs for l in logs['loss']]
         super(LoggerCallBack, self).on_eval_end(logs)
 
 

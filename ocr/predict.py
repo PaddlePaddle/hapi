@@ -51,7 +51,7 @@ add_arg('static',            bool,  False,   "Whether to use dygraph.")
 
 
 def main(FLAGS):
-    paddle.disable_static(device) if FLAGS.static else None
+    paddle.enable_static() if FLAGS.static else None
     device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
 
     inputs = [Input([None, 1, 48, 384], "float32", name="pixel"), ]
@@ -78,11 +78,9 @@ def main(FLAGS):
         collate_fn=test_collate_fn)
 
     samples = test_dataset.samples
-    #outputs = model.predict(test_loader)
     ins_id = 0
     for image, in test_loader:
-        image = image if FLAGS.static else image[0]
-        pred = model.test_batch([image])[0]
+        pred = model.test_batch(image)[0]
         pred = pred[:, :, np.newaxis] if len(pred.shape) == 2 else pred
         pred = np.transpose(pred, [0, 2, 1])
         for ins in pred:

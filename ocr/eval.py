@@ -45,7 +45,7 @@ add_arg('static',            bool,  False,              "Whether to use dygraph.
 
 
 def main(FLAGS):
-    paddle.enable_static(device) if FLAGS.static else None
+    paddle.enable_static() if FLAGS.static else None
     device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
 
     # yapf: disable
@@ -92,8 +92,8 @@ def main(FLAGS):
 
 
 def beam_search(FLAGS):
-    device = set_device("gpu" if FLAGS.use_gpu else "cpu")
-    paddle.enable_static(device) if FLAGS.static else None
+    paddle.enable_static() if FLAGS.static else None
+    device = paddle.set_device("gpu" if FLAGS.use_gpu else "cpu")
 
     # yapf: disable
     inputs = [
@@ -116,7 +116,7 @@ def beam_search(FLAGS):
         inputs=inputs,
         labels=labels)
 
-    model.prepare(loss_function=None, metrics=SeqBeamAccuracy())
+    model.prepare(metrics=SeqBeamAccuracy())
     model.load(FLAGS.init_model)
 
     test_dataset = data.test()
