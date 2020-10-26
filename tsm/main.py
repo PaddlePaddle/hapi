@@ -46,8 +46,8 @@ def make_optimizer(step_per_epoch, parameters=None):
 
 
 def main():
-    device = paddle.set_device(FLAGS.device)
     paddle.enable_static() if not FLAGS.dynamic else None
+    device = paddle.set_device(FLAGS.device)
 
     train_transform = Compose([
         GroupScale(), GroupMultiScaleCrop(), GroupRandomCrop(),

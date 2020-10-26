@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    paddle.enable_static(device) if not FLAGS.dynamic else None
     device = paddle.set_device(FLAGS.device)
-    paddle.disable_static(device) if FLAGS.dynamic else None
 
     transform = Compose([GroupScale(), GroupCenterCrop(), NormalizeImage()])
     dataset = KineticsDataset(

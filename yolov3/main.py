@@ -56,7 +56,8 @@ def make_optimizer(step_per_epoch, parameters=None):
 
 
 def main():
-    paddle.enable_static() if FLAGS.dynamic else None
+    paddle.enable_static() if not FLAGS.dynamic else None
+    device = paddle.set_device(FLAGS.device)
 
     if not FLAGS.eval_only:  # training mode
         train_transform = Compose([

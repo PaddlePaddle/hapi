@@ -62,8 +62,8 @@ def load_labels(label_list, with_background=True):
 
 
 def main():
+    paddle.enable_static(device) if not FLAGS.dynamic else None
     device = paddle.set_device(FLAGS.device)
-    paddle.disable_static(device) if FLAGS.dynamic else None
 
     cat2name = load_labels(FLAGS.label_list, with_background=False)
 
