@@ -27,8 +27,8 @@ from paddle.static import InputSpec as Input
 
 
 def main():
+    paddle.enable_static() if FLAGS.static else None
     device = paddle.set_device(FLAGS.device)
-    paddle.disable_static(device) if FLAGS.dynamic else None
 
     train_dataset = MNIST(mode='train')
     val_dataset = MNIST(mode='test')
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--device", type=str, default='gpu', help="device to use, gpu or cpu")
     parser.add_argument(
-        "-d", "--dynamic", action='store_true', help="enable dygraph mode")
+        "-s", "--static", action='store_true', help="enable static mode")
     parser.add_argument(
         "-e", "--epoch", default=10, type=int, help="number of epoch")
     parser.add_argument(

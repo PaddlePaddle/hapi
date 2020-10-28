@@ -12,9 +12,9 @@
 ```
 python mnist.py
 ```
-上面的方式默认使用的静态图模式，切换动态图模式训练可以加```--dynamic```
+上面的方式默认使用的动态图模式，切换动态图模式训练可以加```--static```
 ```
-python mnist.py --dynamic
+python mnist.py --static
 ```
 多卡进行模型训练，启动训练的方式：
 ```

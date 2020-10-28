@@ -39,16 +39,16 @@ def make_optimizer(step_per_epoch, parameter_list=None):
         milestones = FLAGS.milestones
         boundaries = [step_per_epoch * e for e in milestones]
         values = [base_lr * (0.1**i) for i in range(len(boundaries) + 1)]
-        learning_rate = paddle.optimizer.PiecewiseLR(boundaries, values)
+        learning_rate = paddle.optimizer.lr.PiecewiseDecay(boundaries, values)
     elif lr_scheduler == 'cosine':
-        learning_rate = paddle.optimizer.CosineAnnealingLR(
+        learning_rate = paddle.optimizer.lr.CosineAnnealingDecay(
             base_lr, step_per_epoch * FLAGS.epoch)
     else:
         raise ValueError(
             "Expected lr_scheduler in ['piecewise', 'cosine'], but got {}".
             format(lr_scheduler))
 
-    learning_rate = paddle.optimizer.LinearLrWarmup(
+    learning_rate = paddle.optimizer.lr.LinearWarmup(
         learning_rate=learning_rate,
         warmup_steps=5 * step_per_epoch,
         start_lr=0.,
@@ -64,8 +64,8 @@ def make_optimizer(step_per_epoch, parameter_list=None):
 
 
 def main():
+    paddle.enable_static() if FLAGS.static else None
     device = paddle.set_device(FLAGS.device)
-    paddle.disable_static(device) if FLAGS.dynamic else None
 
     model_list = [x for x in models.__dict__["__all__"]]
     assert FLAGS.arch in model_list, "Expected FLAGS.arch in {}, but received {}".format(
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--device", type=str, default='gpu', help="device to run, cpu or gpu")
     parser.add_argument(
-        "-d", "--dynamic", action='store_true', help="enable dygraph mode")
+        "-s", "--static", action='store_true', help="enable static mode")
     parser.add_argument(
         "-e", "--epoch", default=90, type=int, help="number of epoch")
     parser.add_argument(
