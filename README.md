@@ -1,4 +1,23 @@
-# 简介
+<div align="center">
+    <h1>
+        <span style="font-size: 36px;color:#1527c2">飞桨核心框架</span>
+        <span style="font-size: 24px;color:gray">高层API</span>  
+    </h1>
+    <p>
+        <a href="#简介">简介</a> |
+        <a href="#特性">特性</a> |
+        <a href="#快速使用">快速使用</a> |
+        <a href="#新增功能">新增功能</a> |
+        <a href="#更多使用示例">使用示例</a>
+    </p>
+    <p>
+        <a href="https://github.com/PaddlePaddle/Paddle/releases"><img src="https://img.shields.io/github/v/release/PaddlePaddle/Paddle?color=info" /></a>
+        <a href="https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/index_cn.html"><img src="https://img.shields.io/badge/docs-api%20reference-blue" /></a>
+        <a href="https://github.com/PaddlePaddle/Paddle/blob/develop/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue" /></a>
+    </p>
+</div>
+
+## 简介
 
 飞桨框架2.0全新推出高层API，是对飞桨API的进一步封装与升级，提供了更加简洁易用的API，进一步提升了飞桨的易学易用性，并增强飞桨的功能。
 
@@ -20,15 +39,7 @@
 ![](./image/hapi_gif.gif)
 
 
-## 目录
-
-* [特性](#1)
-* [快速使用](#2)
-* [新增功能](#3)
-* [使用示例](#4)
-
-
-## <h2 id="1">特性</h2>
+## 特性
 
 ### 易学易用
 
@@ -69,7 +80,7 @@ model.prepare(optimizer, CrossEntropy(), Accuracy())
 model.fit(train_dataset, val_dataset, batch_size=100, epochs=1, log_freq=100, save_dir="./output/")
 ```
 
-## <h3 id="2">快速使用</h3>
+## 快速使用
 
 以mnist手写字符识别为例，介绍飞桨高层API的使用方式。
 
@@ -132,7 +143,7 @@ model.fit(train_dataset, val_dataset, batch_size=100, epochs=10, log_freq=100, s
 
 高层API中通过fit函数完成训练的循环过程，只需要设置训练的数据读取器、batchsize大小，迭代的轮数epoch、训练日志打印频率log_freq，保存模型的路径即可。
 
-## <h4 id="3">新增功能</h4>
+## 新增功能
 
 除了使用高层API实现一行代码启动训练外，还新增了以下功能：
 - paddle.vision.transforms   图像数据增强模块
@@ -226,7 +237,7 @@ model.fit(train_dataset,
 
 
 
-## <h5 id="4">更多使用示例</h5>
+## 更多使用示例
 
 更多的高层API使用示例请参考：
 - [bert](https://github.com/PaddlePaddle/hapi/tree/master/bert)
