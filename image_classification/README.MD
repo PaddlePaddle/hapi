@@ -28,14 +28,14 @@
 ### 单卡训练
 执行如下命令进行训练
 ```bash
-python -u main.py --arch resnet50 /path/to/imagenet -d
+python -u main.py --arch resnet50 /path/to/imagenet
 ```
--d 是使用动态模式训练，默认为静态图模式。
+加-s 可以切换成静态图模式训练，默认为动态图模式。
 
 ### 多卡训练
 执行如下命令进行训练
 ```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 python -m paddle.distributed.launch main.py --arch resnet50 -d /path/to/imagenet
+CUDA_VISIBLE_DEVICES=0,1,2,3 python -m paddle.distributed.launch main.py --arch resnet50 /path/to/imagenet
 ```
 
 ## 预测
@@ -43,7 +43,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m paddle.distributed.launch main.py --arch 
 ### 单卡预测
 执行如下命令进行预测
 ```bash
-python -u main.py --arch resnet50 -d --eval-only /path/to/imagenet 
+python -u main.py --arch resnet50 --eval-only /path/to/imagenet 
 ```
 
 ### 多卡预测
@@ -58,7 +58,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m paddle.distributed.launch main.py --arch 
 
 * **arch**: 要训练或预测的模型名称
 * **device**: 训练使用的设备，'gpu'或'cpu'，默认值：'gpu'
-* **dynamic**: 是否使用动态图模式训练
+* **static**: 是否使用静态图模式训练
 * **epoch**: 训练的轮数，默认值：120
 * **learning-rate**: 学习率，默认值：0.1
 * **batch-size**: 每张卡的batch size，默认值：64

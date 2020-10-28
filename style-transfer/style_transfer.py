@@ -1,27 +1,25 @@
 import os
+import cv2
+import copy
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
 import paddle
-
 from paddle.vision.models import vgg16
 from paddle.vision.transforms import transforms
-from paddle import fluid
-
-import cv2
-import copy
 
 
 def load_image(image_path, max_size=400, shape=None):
-    image = cv2.imread(image_path)
-    image = image.astype('float32') / 255.0
+    image = Image.open(image_path).convert('RGB')
+
     size = shape if shape is not None else max_size if max(
-        image.shape[:2]) > max_size else max(image.shape[:2])
+        image.size) > max_size else max(image.size)
 
     transform = transforms.Compose([
-        transforms.Resize(size), transforms.Permute(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        transforms.Resize(size), transforms.Transpose(), transforms.Normalize(
+            [123.675, 116.28, 103.53], [58.395, 57.120, 57.375])
     ])
     image = transform(image)[np.newaxis, :3, :, :]
     image = paddle.to_tensor(image)
@@ -108,9 +106,6 @@ class StyleTransferLoss(paddle.nn.Layer):
 
 
 def main():
-    # 启动动态图模式
-    paddle.disable_static()
-
     content = load_image(FLAGS.content_image)
     style = load_image(FLAGS.style_image, shape=tuple(content.shape[-2:]))
 
@@ -123,12 +118,12 @@ def main():
     target = net.create_parameter(shape=content.shape)
     target.set_value(content.numpy())
 
-    optimizer = fluid.optimizer.Adam(
-        parameter_list=[target], learning_rate=FLAGS.lr)
+    optimizer = paddle.optimizer.Adam(
+        parameters=[target], learning_rate=FLAGS.lr)
     model.prepare(optimizer, style_loss)
 
-    content_fetures = model.test_batch(content)
-    style_features = model.test_batch(style)
+    content_fetures = model.predict_batch(content)
+    style_features = model.predict_batch(style)
 
     # 将两个特征组合，作为损失函数的label传给模型
     feats = style_features + [content_fetures[-2]]

@@ -17,6 +17,7 @@ import cv2
 import math
 import random
 import numpy as np
+from PIL import Image
 
 from paddle.vision.datasets import DatasetFolder
 from paddle.vision.transforms import transforms
@@ -36,19 +37,19 @@ class ImageNetDataset(DatasetFolder):
         if self.mode == 'train':
             self.transform = transforms.Compose([
                 transforms.RandomResizedCrop(image_size),
-                transforms.RandomHorizontalFlip(),
-                transforms.Permute(mode='CHW'), normalize
+                transforms.RandomHorizontalFlip(), transforms.Transpose(),
+                normalize
             ])
         else:
             self.transform = transforms.Compose([
                 transforms.Resize(resize_short_size),
-                transforms.CenterCrop(image_size),
-                transforms.Permute(mode='CHW'), normalize
+                transforms.CenterCrop(image_size), transforms.Transpose(),
+                normalize
             ])
 
     def __getitem__(self, idx):
         img_path, label = self.samples[idx]
-        img = cv2.imread(img_path).astype(np.float32)
+        img = Image.open(img_path).convert('RGB')
         label = np.array([label]).astype(np.int64)
         return self.transform(img), label
 

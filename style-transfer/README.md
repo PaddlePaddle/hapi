@@ -29,26 +29,21 @@ gram_matrix = paddle.matmul(tensor, paddle.transpose(tensor, [1, 0]))
 # 导入所需的模块
 %matplotlib inline
 
-import numpy as np
-import matplotlib.pyplot as plt
-
-import paddle
-
-from paddle.vision.models import vgg16
-from paddle.vision.transforms import transforms
-from paddle import fluid
-
+import os
 import cv2
 import copy
+import argparse
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+
+import paddle
+from paddle.vision.models import vgg16
+from paddle.vision.transforms import transforms
+
 
 # 图像预处理函数，和tensor恢复到自然图像的函数
 from .style_transfer import load_image, image_restore
-```
-
-
-```python
-# 启动动态图模式
-paddle.disable_static()
 ```
 
 ```python
@@ -171,7 +166,7 @@ target.set_value(content.numpy())
 
 ```python
 # 创建优化器
-optimizer = fluid.optimizer.Adam(parameter_list=[target], learning_rate=0.001)
+optimizer = paddle.optimizer.Adam(parameters=[target], learning_rate=0.001)
 ```
 
 
@@ -183,8 +178,8 @@ model.prepare(optimizer, style_loss)
 
 ```python
 # 使用内容图像和风格图像获取内容特征和风格特征
-content_fetures = model.test_batch(content)
-style_features = model.test_batch(style)
+content_fetures = model.predict_batch(content)
+style_features = model.predict_batch(style)
 ```
 
 
@@ -296,7 +291,7 @@ ax3.imshow(image_restore(style))
 上述可运行的代码都在[style-transfer.ipynb](./style-transfer.ipynb)中， 同时我们提供了[style-transfer.py](./style-transfer.py)脚本，可以直接执行如下命令，实现图片的风格迁移：
 
 ```shell
-python -u style-transfer.py --content-image /path/to/your-content-image --style-image /path/to/your-style-image --save-dir /path/to/your-output-dir
+python -u style_transfer.py --content-image /path/to/your-content-image --style-image /path/to/your-style-image --save-dir /path/to/your-output-dir
 ```
 
 风格迁移生成的图像保存在```--save-dir```中。
