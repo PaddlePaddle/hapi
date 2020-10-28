@@ -166,7 +166,7 @@ target.set_value(content.numpy())
 
 ```python
 # 创建优化器
-optimizer = paddle.optimizer.Adam(parameters=[target], learning_rate=FLAGS.lr)
+optimizer = paddle.optimizer.Adam(parameters=[target], learning_rate=0.001)
 ```
 
 

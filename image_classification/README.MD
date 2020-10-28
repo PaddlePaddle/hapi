@@ -30,7 +30,7 @@
 ```bash
 python -u main.py --arch resnet50 /path/to/imagenet
 ```
-加-s 可以切换成静态图模式训练，默认为静态图模式。
+加-s 可以切换成静态图模式训练，默认为动态图模式。
 
 ### 多卡训练
 执行如下命令进行训练
