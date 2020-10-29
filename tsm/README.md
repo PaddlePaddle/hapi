@@ -61,7 +61,7 @@ TSM的训练数据采用由DeepMind公布的Kinetics-400动作识别数据集。
 python main.py --help
 ```
 
-#### 静态图训练
+#### 动态图训练
 
 使用如下方式进行单卡训练:
 
@@ -76,21 +76,21 @@ python main.py --data=<path/to/dataset> --batch_size=16
 CUDA_VISIBLE_DEVICES=0,1 python -m paddle.distributed.launch main.py --data=<path/to/dataset> --batch_size=8
 ```
 
-#### 动态图训练
+#### 静态图训练
 
-动态图训练只需要在运行脚本时添加`-d`参数即可。
+静态图训练只需要在运行脚本时添加`-s`参数即可。
 
 使用如下方式进行单卡训练:
 
 ```bash
 export CUDA_VISIBLE_DEVICES=0
-python main.py --data=<path/to/dataset> --batch_size=16 -d
+python main.py --data=<path/to/dataset> --batch_size=16 -s
 ```
 
 使用如下方式进行多卡训练:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 python -m paddle.distributed.launch main.py --data=<path/to/dataset> --batch_size=8 -d
+CUDA_VISIBLE_DEVICES=0,1 python -m paddle.distributed.launch main.py --data=<path/to/dataset> --batch_size=8 -s
 ```
 
 **注意：** 对于静态图和动态图，多卡训练中`--batch_size`为每卡上的batch_size，即总batch_size为`--batch_size`乘以卡数

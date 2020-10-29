@@ -12,18 +12,83 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import random
 import traceback
+import collections
 import numpy as np
 from PIL import Image
+
+if sys.version_info < (3, 3):
+    Sequence = collections.Sequence
+    Iterable = collections.Iterable
+else:
+    Sequence = collections.abc.Sequence
+    Iterable = collections.abc.Iterable
 
 import logging
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    'GroupScale', 'GroupMultiScaleCrop', 'GroupRandomCrop', 'GroupRandomFlip',
-    'GroupCenterCrop', 'NormalizeImage'
+    'Compose', 'GroupScale', 'GroupMultiScaleCrop', 'GroupRandomCrop',
+    'GroupRandomFlip', 'GroupCenterCrop', 'NormalizeImage'
 ]
+
+
+class Compose(object):
+    """
+    Composes several transforms together use for composing list of transforms
+    together for a dataset transform.
+
+    Args:
+        transforms (list): List of transforms to compose.
+
+    Returns:
+        A compose object which is callable, __call__ for this Compose
+        object will call each given :attr:`transforms` sequencely.
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, ColorJitter, Resize
+
+            transform = Compose([ColorJitter(), Resize(size=608)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(10):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
+
+    """
+
+    def __init__(self, transforms):
+        self.transforms = transforms
+
+    def __call__(self, *data):
+        for f in self.transforms:
+            try:
+                # multi-fileds in a sample
+                if isinstance(data, Sequence):
+                    data = f(*data)
+                # single field in a sample, call transform directly
+                else:
+                    data = f(data)
+            except Exception as e:
+                stack_info = traceback.format_exc()
+                print("fail to perform transform [{}] with error: "
+                      "{} and stack:\n{}".format(f, e, str(stack_info)))
+                raise e
+        return data
+
+    def __repr__(self):
+        format_string = self.__class__.__name__ + '('
+        for t in self.transforms:
+            format_string += '\n'
+            format_string += '    {0}'.format(t)
+        format_string += '\n)'
+        return format_string
 
 
 class GroupScale(object):

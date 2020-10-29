@@ -45,7 +45,7 @@ class ConvBNLayer(nn.Layer):
                  act="leaky"):
         super(ConvBNLayer, self).__init__()
 
-        self.conv = nn.Conv2d(
+        self.conv = nn.Conv2D(
             in_channels=ch_in,
             out_channels=ch_out,
             kernel_size=filter_size,
@@ -53,7 +53,7 @@ class ConvBNLayer(nn.Layer):
             padding=padding,
             groups=groups,
             bias_attr=False)
-        self.batch_norm = nn.BatchNorm2d(
+        self.batch_norm = nn.BatchNorm2D(
             ch_out,
             weight_attr=ParamAttr(regularizer=L2Decay(0.)),
             bias_attr=ParamAttr(regularizer=L2Decay(0.)))
@@ -166,7 +166,7 @@ class YOLOv3(nn.Layer):
 
             block_out = self.add_sublayer(
                 "block_out_{}".format(idx),
-                nn.Conv2d(
+                nn.Conv2D(
                     in_channels=1024 // (2**idx),
                     out_channels=num_filters,
                     kernel_size=1,
@@ -228,7 +228,7 @@ class YOLOv3(nn.Layer):
             return outputs
 
         preds = [
-            img_id, F.multiclass_nms(
+            img_id, paddle.fluid.layers.multiclass_nms(
                 bboxes=paddle.concat(
                     boxes, axis=1),
                 scores=paddle.concat(

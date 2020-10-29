@@ -62,7 +62,7 @@ def load_labels(label_list, with_background=True):
 
 
 def main():
-    paddle.enable_static(device) if not FLAGS.dynamic else None
+    paddle.enable_static() if FLAGS.static else None
     device = paddle.set_device(FLAGS.device)
 
     cat2name = load_labels(FLAGS.label_list, with_background=False)
@@ -89,7 +89,7 @@ def main():
     img_id = np.array([0]).astype('int64')[np.newaxis, :]
     img_shape = np.array([h, w]).astype('int32')[np.newaxis, :]
 
-    _, bboxes = model.test_batch([img_id, img_shape, img])
+    _, bboxes = model.predict_batch([img_id, img_shape, img])
 
     vis_img = draw_bbox(orig_img, cat2name, bboxes, FLAGS.draw_threshold)
     save_name = get_save_image_name(FLAGS.output_dir, FLAGS.infer_image)
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--device", type=str, default='gpu', help="device to use, gpu or cpu")
     parser.add_argument(
-        "-d", "--dynamic", action='store_true', help="enable dygraph mode")
+        "-s", "--static", action='store_true', help="enable static mode")
     parser.add_argument(
         "--label_list",
         type=str,
