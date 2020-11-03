@@ -32,7 +32,7 @@ BMN Overview
     git clone https://github.com/PaddlePaddle/hapi
     cd hapi
     export PYTHONPATH=`pwd`:$PYTHONPATH
-    cd examples/bmn
+    cd bmn
     ```
 
 
@@ -69,9 +69,9 @@ BMN的训练数据采用ActivityNet1.3提供的数据集，我们提供了处理
 
     python train.py
 
-默认使用静态图训练，若使用动态图训练只需要在运行脚本添加`-d`参数即可，如：
+默认使用动态图训练，若使用静态图训练只需要在运行脚本添加`-s`参数即可，如：
 
-    python train.py -d
+    python train.py -s
 
 - 代码运行需要先安装pandas
 
@@ -84,7 +84,7 @@ BMN的训练数据采用ActivityNet1.3提供的数据集，我们提供了处理
 
     python eval.py --weights=$PATH_TO_WEIGHTS
 
-- 进行评估时，可修改命令行中的`weights`参数指定需要评估的权重，若未指定，脚本会下载已发布的模型[model](https://paddlemodels.bj.bcebos.com/hapi/bmn.pdparams)进行评估。
+- 进行评估时，可修改命令行中的`weights`参数指定需要评估的权重，如--weights='./checkpoint/final.pdparams'。若未指定，脚本会下载已发布的模型[model](https://paddlemodels.bj.bcebos.com/hapi/bmn.pdparams)进行评估。
 
 - 上述程序会将运行结果保存在`--output_path`参数指定的文件夹下，默认为output/EVAL/BMN\_results；测试结果保存在`--result_path`参数指定的文件夹下，默认为evaluate\_results。
 
@@ -110,7 +110,7 @@ BMN的训练数据采用ActivityNet1.3提供的数据集，我们提供了处理
 
 | AR@1 | AR@5 | AR@10 | AR@100 | AUC |
 | :---: | :---: | :---: | :---: | :---: |
-| 33.10 | 49.18 | 56.54 | 75.12 | 67.16% |
+| 33.23 | 49.16 | 56.59 | 75.27 | 67.18% |
 
 
 ## 模型推断
@@ -120,7 +120,7 @@ BMN的训练数据采用ActivityNet1.3提供的数据集，我们提供了处理
     python predict.py --weights=$PATH_TO_WEIGHTS \
                       --filelist=$FILELIST
 
-- 使用python命令行启动程序时，`--filelist`参数指定待推断的文件列表，如果不设置，默认为./infer.list。`--weights`参数为训练好的权重参数，若未指定，脚本会下载已发布的模型[model](https://paddlemodels.bj.bcebos.com/hapi/bmn.pdparams)进行预测。
+- 使用python命令行启动程序时，`--filelist`参数指定待推断的文件列表，如果不设置，默认为./infer.list。`--weights`参数指定训练好的权重参数，如--weights='./checkpoint/final.pdparams'。若未指定，脚本会下载已发布的模型[model](https://paddlemodels.bj.bcebos.com/hapi/bmn.pdparams)进行预测。
 
 - 上述程序会将运行结果保存在`--output_path`参数指定的文件夹下，默认为output/INFER/BMN\_results；测试结果保存在`--result_path`参数指定的文件夹下，默认为predict\_results。
 

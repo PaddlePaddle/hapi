@@ -13,7 +13,7 @@
 #limitations under the License.
 
 import paddle
-import paddle.fluid as fluid
+import paddle.distributed as dist
 import argparse
 import logging
 import sys
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser("Paddle high level api of BMN.")
     parser.add_argument(
-        "-d", "--dynamic", action='store_true', help="enable dygraph mode")
+        "-s", "--static", action='store_true', help="enable static mode")
     parser.add_argument(
         '--config_file',
         type=str,
@@ -92,19 +92,18 @@ def optimizer(cfg, parameter_list):
     lr_decay = cfg.TRAIN.learning_rate_decay
     l2_weight_decay = cfg.TRAIN.l2_weight_decay
     lr = [base_lr, base_lr * lr_decay]
-    optimizer = fluid.optimizer.Adam(
-        fluid.layers.piecewise_decay(
-            boundaries=bd, values=lr),
-        parameter_list=parameter_list,
-        regularization=fluid.regularizer.L2DecayRegularizer(
-            regularization_coeff=l2_weight_decay))
+    scheduler = paddle.optimizer.lr.PiecewiseDecay(boundaries=bd, values=lr)
+    optimizer = paddle.optimizer.Adam(
+        learning_rate=scheduler,
+        parameters=parameter_list,
+        weight_decay=l2_weight_decay)
     return optimizer
 
 
 # TRAIN
 def train_bmn(args):
+    paddle.enable_static() if args.static else None
     device = paddle.set_device(args.device)
-    paddle.disable_static(device) if args.dynamic else None
 
     if not os.path.isdir(args.save_dir):
         os.makedirs(args.save_dir)
@@ -139,19 +138,30 @@ def train_bmn(args):
 
     # if resume weights is given, load resume weights directly
     if args.resume is not None:
-        model.load(args.resume)
-    model.fit(train_data=train_dataset,
-              eval_data=val_dataset,
-              batch_size=train_cfg.TRAIN.batch_size,
-              epochs=train_cfg.TRAIN.epoch,
-              eval_freq=args.valid_interval,
-              log_freq=args.log_interval,
-              save_dir=args.save_dir,
-              shuffle=train_cfg.TRAIN.use_shuffle,
-              num_workers=train_cfg.TRAIN.num_workers,
-              drop_last=True)
+        assert os.path.exists(
+            args.resume + '.pdparams'
+        ), "Given weight dir {}.pdparams not exist.".format(args.resume)
+        assert os.path.exists(args.resume + '.pdopt'
+                              ), "Given weight dir {}.pdopt not exist.".format(
+                                  args.resume)
+        model.load(args.resume + '.pdparams')
+        optim.load(args.resume + '.pdopt')
+
+    model.fit(
+        train_data=train_dataset,
+        eval_data=val_dataset,
+        batch_size=train_cfg.TRAIN.batch_size,  #batch_size of one card
+        epochs=train_cfg.TRAIN.epoch,
+        eval_freq=args.valid_interval,
+        log_freq=args.log_interval,
+        save_dir=args.save_dir,
+        shuffle=train_cfg.TRAIN.use_shuffle,
+        num_workers=train_cfg.TRAIN.num_workers,
+        drop_last=True)
 
 
 if __name__ == "__main__":
     args = parse_args()
-    train_bmn(args)
+    dist.spawn(
+        train_bmn, args=(args, ),
+        nprocs=4)  # if single-card training please set "nprocs=1"

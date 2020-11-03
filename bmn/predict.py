@@ -17,7 +17,6 @@ import sys
 import os
 import logging
 import paddle
-import paddle.fluid as fluid
 
 from modeling import bmn, BmnLoss
 from bmn_metric import BmnMetric
@@ -35,10 +34,7 @@ logger = logging.getLogger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser("BMN inference.")
     parser.add_argument(
-        "-d",
-        "--dynamic",
-        action='store_true',
-        help="enable dygraph mode, only support dynamic mode at present time")
+        "-s", "--static", action='store_true', help="enable static mode")
     parser.add_argument(
         '--config_file',
         type=str,
@@ -82,8 +78,8 @@ def parse_args():
 
 # Prediction
 def infer_bmn(args):
+    paddle.enable_static() if args.static else None
     device = paddle.set_device(args.device)
-    paddle.disable_static(device) if args.dynamic else None
 
     #config setting
     config = parse_config(args.config_file)
@@ -114,8 +110,8 @@ def infer_bmn(args):
     # load checkpoint
     if args.weights is not None:
         assert os.path.exists(
-            args.weights +
-            ".pdparams"), "Given weight dir {} not exist.".format(args.weights)
+            args.weights), "Given weight dir {} not exist.".format(
+                args.weights)
         logger.info('load test weights from {}'.format(args.weights))
         model.load(args.weights)
 
