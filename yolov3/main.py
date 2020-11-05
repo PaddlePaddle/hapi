@@ -23,7 +23,6 @@ import numpy as np
 
 import paddle
 from paddle.io import DataLoader, DistributedBatchSampler
-from paddle.vision.transforms import Compose, BatchCompose
 
 from modeling import yolov3_darknet53, YoloLoss
 from coco import COCODataset
@@ -56,7 +55,8 @@ def make_optimizer(step_per_epoch, parameters=None):
 
 
 def main():
-    paddle.enable_static() if FLAGS.dynamic else None
+    paddle.enable_static() if FLAGS.static else None
+    device = paddle.set_device(FLAGS.device)
 
     if not FLAGS.eval_only:  # training mode
         train_transform = Compose([
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--device", type=str, default='gpu', help="device to use, gpu or cpu")
     parser.add_argument(
-        "-d", "--dynamic", action='store_true', help="enable dygraph mode")
+        "-s", "--static", action='store_true', help="enable static mode")
     parser.add_argument(
         "--eval_only", action='store_true', help="run evaluation only")
     parser.add_argument(
@@ -211,7 +211,7 @@ if __name__ == '__main__':
         type=str,
         help="path to weights for evaluation")
     parser.add_argument(
-        "-s",
+        "-d",
         "--save_dir",
         default=None,
         type=str,

@@ -16,10 +16,21 @@ from __future__ import division
 from __future__ import print_function
 
 import cv2
+import sys
 import traceback
+import collections
 import numpy as np
 
+if sys.version_info < (3, 3):
+    Sequence = collections.Sequence
+    Iterable = collections.Iterable
+else:
+    Sequence = collections.abc.Sequence
+    Iterable = collections.abc.Iterable
+
 __all__ = [
+    'BatchCompose',
+    'Compose',
     'ColorDistort',
     'RandomExpand',
     'RandomCrop',
@@ -31,6 +42,151 @@ __all__ = [
     'BboxXYXY2XYWH',
     'ResizeImage',
 ]
+
+
+class Compose(object):
+    """
+    Composes several transforms together use for composing list of transforms
+    together for a dataset transform.
+
+    Args:
+        transforms (list): List of transforms to compose.
+
+    Returns:
+        A compose object which is callable, __call__ for this Compose
+        object will call each given :attr:`transforms` sequencely.
+
+    Examples:
+    
+        .. code-block:: python
+
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, ColorJitter, Resize
+
+            transform = Compose([ColorJitter(), Resize(size=608)])
+            flowers = Flowers(mode='test', transform=transform)
+
+            for i in range(10):
+                sample = flowers[i]
+                print(sample[0].shape, sample[1])
+
+    """
+
+    def __init__(self, transforms):
+        self.transforms = transforms
+
+    def __call__(self, *data):
+        for f in self.transforms:
+            try:
+                # multi-fileds in a sample
+                if isinstance(data, Sequence):
+                    data = f(*data)
+                # single field in a sample, call transform directly
+                else:
+                    data = f(data)
+            except Exception as e:
+                stack_info = traceback.format_exc()
+                print("fail to perform transform [{}] with error: "
+                      "{} and stack:\n{}".format(f, e, str(stack_info)))
+                raise e
+        return data
+
+    def __repr__(self):
+        format_string = self.__class__.__name__ + '('
+        for t in self.transforms:
+            format_string += '\n'
+            format_string += '    {0}'.format(t)
+        format_string += '\n)'
+        return format_string
+
+
+class BatchCompose(object):
+    """Composes several batch transforms together
+
+    Args:
+        transforms (list): List of transforms to compose.
+                           these transforms perform on batch data.
+
+    Examples:
+    
+        .. code-block:: python
+
+            import numpy as np
+            from paddle.io import DataLoader
+
+            from hapi.model import set_device
+            from hapi.datasets import Flowers
+            from hapi.vision.transforms import Compose, BatchCompose, Resize
+
+            class NormalizeBatch(object):
+                def __init__(self,
+                            mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225],
+                            scale=True,
+                            channel_first=True):
+
+                    self.mean = mean
+                    self.std = std
+                    self.scale = scale
+                    self.channel_first = channel_first
+                    if not (isinstance(self.mean, list) and isinstance(self.std, list) and
+                            isinstance(self.scale, bool)):
+                        raise TypeError("{}: input type is invalid.".format(self))
+                    from functools import reduce
+                    if reduce(lambda x, y: x * y, self.std) == 0:
+                        raise ValueError('{}: std is invalid!'.format(self))
+
+                def __call__(self, samples):
+                    for i in range(len(samples)):
+                        samples[i] = list(samples[i])
+                        im = samples[i][0]
+                        im = im.astype(np.float32, copy=False)
+                        mean = np.array(self.mean)[np.newaxis, np.newaxis, :]
+                        std = np.array(self.std)[np.newaxis, np.newaxis, :]
+                        if self.scale:
+                            im = im / 255.0
+                        im -= mean
+                        im /= std
+                        if self.channel_first:
+                            im = im.transpose((2, 0, 1))
+                        samples[i][0] = im
+                    return samples
+
+            transform = Compose([Resize((500, 500))])
+            flowers_dataset = Flowers(mode='test', transform=transform)
+
+            device = set_device('cpu')
+
+            collate_fn = BatchCompose([NormalizeBatch()])
+            loader = DataLoader(
+                        flowers_dataset,
+                        batch_size=4,
+                        places=device,
+                        return_list=True,
+                        collate_fn=collate_fn)
+
+            for data in loader:
+                # do something
+                break
+    """
+
+    def __init__(self, transforms=[]):
+        self.transforms = transforms
+
+    def __call__(self, data):
+        for f in self.transforms:
+            try:
+                data = f(data)
+            except Exception as e:
+                stack_info = traceback.format_exc()
+                print("fail to perform batch transform [{}] with error: "
+                      "{} and stack:\n{}".format(f, e, str(stack_info)))
+                raise e
+
+        # sample list to batch data
+        batch = list(zip(*data))
+
+        return batch
 
 
 class ColorDistort(object):

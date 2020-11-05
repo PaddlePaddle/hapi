@@ -111,7 +111,7 @@ YOLOv3模型训练总batch_size为64训练，以下以使用4卡Tesla P40每卡b
 python main.py --help
 ```
 
-#### 静态图训练
+#### 动态图训练
 
 使用如下方式进行多卡训练:
 
@@ -119,14 +119,14 @@ python main.py --help
 CUDA_VISIBLE_DEVICES=0,1,2,3 python -m paddle.distributed.launch main.py --data=<path/to/dataset> --batch_size=16
 ```
 
-#### 动态图训练
+#### 静态图训练
 
-动态图训练只需要在运行脚本时添加`-d`参数即可。
+静态图图训练只需要在运行脚本时添加`-s`参数即可。
 
 使用如下方式进行多卡训练:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 python -m paddle.distributed.launch main.py --data=<path/to/dataset> --batch_size=16 -d
+CUDA_VISIBLE_DEVICES=0,1,2,3 python -m paddle.distributed.launch main.py --data=<path/to/dataset> --batch_size=16 -s
 ```
 
 
@@ -146,7 +146,7 @@ python main.py --data=dataset/voc  --eval_only
 python main.py --data=dataset/voc --eval_only --weights=yolo_checkpoint/no_mixup/final
 ```
 
-同样可以通过指定`-d`参数进行动态图模式的评估。
+同样可以通过指定`-s`参数进行静态图模式的评估。
 
 #### 评估精度
 

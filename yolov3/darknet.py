@@ -40,7 +40,7 @@ class ConvBNLayer(nn.Layer):
                  name=None):
         super(ConvBNLayer, self).__init__()
 
-        self.conv = nn.Conv2d(
+        self.conv = nn.Conv2D(
             in_channels=ch_in,
             out_channels=ch_out,
             kernel_size=filter_size,
@@ -50,7 +50,7 @@ class ConvBNLayer(nn.Layer):
             weight_attr=ParamAttr(name=name + '.conv.weights'),
             bias_attr=False)
         bn_name = name + '.bn'
-        self.batch_norm = nn.BatchNorm2d(
+        self.batch_norm = nn.BatchNorm2D(
             ch_out,
             weight_attr=ParamAttr(
                 name=bn_name + '.scale', regularizer=L2Decay(0.)),

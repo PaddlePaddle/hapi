@@ -20,7 +20,6 @@ import argparse
 import numpy as np
 
 import paddle
-from paddle.vision.transforms import Compose
 
 from check import check_gpu, check_version
 from modeling import tsm_resnet50
@@ -33,8 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    paddle.enable_static() if FLAGS.static else None
     device = paddle.set_device(FLAGS.device)
-    paddle.disable_static(device) if FLAGS.dynamic else None
 
     transform = Compose([GroupScale(), GroupCenterCrop(), NormalizeImage()])
     dataset = KineticsDataset(
@@ -53,7 +52,7 @@ def main():
         model.load(FLAGS.weights, reset_optimizer=True)
 
     imgs, label = dataset[0]
-    pred = model.test_batch([imgs[np.newaxis, :]])
+    pred = model.predict_batch([imgs[np.newaxis, :]])
     pred = labels[np.argmax(pred)]
     logger.info("Sample {} predict label: {}, ground truth label: {}" \
                 .format(FLAGS.infer_file, pred, labels[int(label)]))
@@ -69,7 +68,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--device", type=str, default='gpu', help="device to use, gpu or cpu")
     parser.add_argument(
-        "-d", "--dynamic", action='store_true', help="enable dygraph mode")
+        "-s", "--static", action='store_true', help="enable static mode")
     parser.add_argument(
         "--label_list",
         type=str,
