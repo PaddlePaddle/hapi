@@ -27,9 +27,6 @@ from kinetics_dataset import KineticsDataset
 from transforms import *
 from utils import print_arguments
 
-import logging
-logger = logging.getLogger(__name__)
-
 
 def main():
     paddle.enable_static() if FLAGS.static else None
@@ -54,7 +51,7 @@ def main():
     imgs, label = dataset[0]
     pred = model.predict_batch([imgs[np.newaxis, :]])
     pred = labels[np.argmax(pred)]
-    logger.info("Sample {} predict label: {}, ground truth label: {}" \
+    print("Sample {} predict label: {}, ground truth label: {}" \
                 .format(FLAGS.infer_file, pred, labels[int(label)]))
 
 

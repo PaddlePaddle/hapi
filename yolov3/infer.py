@@ -30,9 +30,6 @@ from transforms import *
 from utils import print_arguments
 from visualizer import draw_bbox
 
-import logging
-logger = logging.getLogger(__name__)
-
 IMAGE_MEAN = [0.485, 0.456, 0.406]
 IMAGE_STD = [0.229, 0.224, 0.225]
 NUM_MAX_BOXES = 50
@@ -93,7 +90,7 @@ def main():
 
     vis_img = draw_bbox(orig_img, cat2name, bboxes, FLAGS.draw_threshold)
     save_name = get_save_image_name(FLAGS.output_dir, FLAGS.infer_image)
-    logger.info("Detection bbox results save in {}".format(save_name))
+    print("Detection bbox results save in {}".format(save_name))
     vis_img.save(save_name, quality=95)
 
 

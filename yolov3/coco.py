@@ -187,7 +187,7 @@ class COCODataset(Dataset):
             data = np.frombuffer(f.read(), dtype='uint8')
             im = cv2.imdecode(data, 1)
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-        im_id = roidb['im_id']
+        im_id = roidb['im_id'].astype('float32')
         im_shape = np.array([roidb['h'], roidb['w']], dtype='int32')
         gt_bbox = roidb['gt_bbox']
         gt_class = roidb['gt_class']
