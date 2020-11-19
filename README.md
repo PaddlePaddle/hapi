@@ -215,7 +215,7 @@ from paddle.metirc import Accuracy
 
 
 # 调用resnet50模型
-model = resnet50(pretrained=False)
+model = paddle.Model(resnet50(pretrained=False, num_classes=10))
 # 使用Cifar10数据集
 train_dataset = Cifar10(mode='train')
 val_dataset = Cifar10(mode='test')
