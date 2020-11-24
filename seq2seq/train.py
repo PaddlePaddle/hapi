@@ -20,23 +20,19 @@ from functools import partial
 
 import numpy as np
 import paddle
-import paddle.fluid as fluid
-from paddle.fluid.io import DataLoader
 from paddle.static import InputSpec as Input
 
-from seq2seq_base import BaseModel, CrossEntropyCriterion
-from seq2seq_attn import AttentionModel
+from seq2seq import Seq2Seq, CrossEntropyCriterion
 from reader import create_data_loader
-from utility import PPL, TrainCallback, get_model_cls
+from utility import PPL, TrainCallback
 
 
 def do_train(args):
     device = paddle.set_device("gpu" if args.use_gpu else "cpu")
-    fluid.enable_dygraph(device) if args.eager_run else None
+    paddle.enable_static() if not args.eager_run else None
 
     if args.enable_ce:
-        fluid.default_main_program().random_seed = 102
-        fluid.default_startup_program().random_seed = 102
+        paddle.manual_seed(102)
 
     # define model
     inputs = [
@@ -47,32 +43,26 @@ def do_train(args):
         Input(
             [None, None], "int64", name="trg_word"),
     ]
-    labels = [
-        Input(
-            [None], "int64", name="trg_length"),
-        Input(
-            [None, None, 1], "int64", name="label"),
-    ]
+    labels = [Input([None, None, 1], "int64", name="label"), ]
 
     # def dataloader
-    train_loader, eval_loader = create_data_loader(args, device)
+    [train_loader, eval_loader], pad_id = create_data_loader(args, device)
 
-    model_maker = get_model_cls(
-        AttentionModel) if args.attention else get_model_cls(BaseModel)
     model = paddle.Model(
-        model_maker(args.src_vocab_size, args.tar_vocab_size, args.hidden_size,
-                    args.hidden_size, args.num_layers, args.dropout),
+        Seq2Seq(args.src_vocab_size, args.tar_vocab_size, args.hidden_size,
+                args.hidden_size, args.num_layers, args.attention,
+                args.dropout, pad_id),
         inputs=inputs,
         labels=labels)
-    grad_clip = fluid.clip.GradientClipByGlobalNorm(
-        clip_norm=args.max_grad_norm)
-    optimizer = fluid.optimizer.Adam(
+    grad_clip = paddle.nn.ClipGradByGlobalNorm(args.max_grad_norm)
+    optimizer = paddle.optimizer.Adam(
         learning_rate=args.learning_rate,
-        parameter_list=model.parameters(),
+        parameters=model.parameters(),
         grad_clip=grad_clip)
 
     ppl_metric = PPL(reset_freq=100)  # ppl for every 100 batches
     model.prepare(optimizer, CrossEntropyCriterion(), ppl_metric)
+
     model.fit(train_data=train_loader,
               eval_data=eval_loader,
               epochs=args.max_epoch,

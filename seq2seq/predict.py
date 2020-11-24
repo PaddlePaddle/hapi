@@ -20,14 +20,11 @@ from functools import partial
 
 import numpy as np
 import paddle
-import paddle.fluid as fluid
-from paddle.fluid.layers.utils import flatten
-from paddle.fluid.io import DataLoader
+from paddle.io import DataLoader
 from paddle.static import InputSpec as Input
 
 from args import parse_args
-from seq2seq_base import BaseInferModel
-from seq2seq_attn import AttentionInferModel
+from seq2seq import Seq2SeqInfer
 from reader import Seq2SeqDataset, Seq2SeqBatchSampler, SortType, prepare_infer_input
 
 
@@ -50,7 +47,7 @@ def post_process_seq(seq, bos_idx, eos_idx, output_bos=False,
 
 def do_predict(args):
     device = paddle.set_device("gpu" if args.use_gpu else "cpu")
-    fluid.enable_dygraph(device) if args.eager_run else None
+    paddle.enable_static() if not args.eager_run else None
 
     # define model
     inputs = [
@@ -84,14 +81,14 @@ def do_predict(args):
         num_workers=0,
         return_list=True)
 
-    model_maker = AttentionInferModel if args.attention else BaseInferModel
     model = paddle.Model(
-        model_maker(
+        Seq2SeqInfer(
             args.src_vocab_size,
             args.tar_vocab_size,
             args.hidden_size,
             args.hidden_size,
             args.num_layers,
+            args.attention,
             args.dropout,
             bos_id=bos_id,
             eos_id=eos_id,
@@ -109,7 +106,7 @@ def do_predict(args):
     # TODO(guosheng): use model.predict when support variant length
     with io.open(args.infer_output_file, 'w', encoding='utf-8') as f:
         for data in data_loader():
-            finished_seq = model.test_batch(inputs=flatten(data))[0]
+            finished_seq = model.test_batch(inputs=list(data))[0]
             finished_seq = finished_seq[:, :, np.newaxis] if len(
                 finished_seq.shape) == 2 else finished_seq
             finished_seq = np.transpose(finished_seq, [0, 2, 1])

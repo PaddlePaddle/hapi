@@ -1,4 +1,4 @@
-运行本目录下的范例模型需要安装PaddlePaddle Fluid 1.7版。如果您的 PaddlePaddle 安装版本低于此要求，请按照[安装文档](https://www.paddlepaddle.org.cn/#quick-start)中的说明更新 PaddlePaddle 安装版本。
+运行本目录下的范例模型需要安装PaddlePaddle 2.0版。如果您的 PaddlePaddle 安装版本低于此要求，请按照[安装文档](https://www.paddlepaddle.org.cn/#quick-start)中的说明更新 PaddlePaddle 安装版本。
 
 # Sequence to Sequence (Seq2Seq)
 
@@ -12,8 +12,7 @@
 ├── download.py            # 数据下载程序
 ├── train.py               # 训练主程序
 ├── predict.py             # 预测主程序
-├── seq2seq_attn.py        # 带注意力机制的翻译模型程序
-└── seq2seq_base.py        # 无注意力机制的翻译模型程序
+└── seq2seq_base.py        # 翻译模型程序
 ```
 
 ## 简介
@@ -35,7 +34,7 @@ Sequence to Sequence (Seq2Seq)，使用编码器-解码器（Encoder-Decoder）�
 git clone https://github.com/PaddlePaddle/hapi
 cd hapi
 export PYTHONPATH=$PYTHONPATH:`pwd`
-cd examples/seq2seq
+cd seq2seq
 ```
 
 ## 数据介绍
@@ -157,7 +156,7 @@ python predict.py \
 使用 [*multi-bleu.perl*](https://github.com/moses-smt/mosesdecoder.git) 工具来评价模型预测的翻译质量，使用方法如下：
 
 ```sh
-mosesdecoder/scripts/generic/multi-bleu.perl tst2013.vi < infer_output.txt
+perl mosesdecoder/scripts/generic/multi-bleu.perl tst2013.vi < infer_output.txt
 ```
 
 每个模型分别训练了10次，单次取第10个epoch保存的模型进行预测，取beam_size=10。效果如下（为了便于观察，对10次结果按照升序进行了排序）：
@@ -165,13 +164,11 @@ mosesdecoder/scripts/generic/multi-bleu.perl tst2013.vi < infer_output.txt
 ```
 > no attention
 tst2012 BLEU:
-[10.75 10.85 10.9  10.94 10.97 11.01 11.01 11.04 11.13 11.4]
+
 tst2013 BLEU:
-[10.71 10.71 10.74 10.76 10.91 10.94 11.02 11.16 11.21 11.44]
 
 > with attention
 tst2012 BLEU:
-[21.14 22.34 22.54 22.65 22.71 22.71 23.08 23.15 23.3  23.4]
+
 tst2013 BLEU:
-[23.41 24.79 25.11 25.12 25.19 25.24 25.39 25.61 25.61 25.63]
-```
+24.94
