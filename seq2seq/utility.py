@@ -90,7 +90,7 @@ def get_model_cls(model_cls):
     @functools.wraps(model_cls.__init__)
     def __lstm_patch__(self, *args, **kwargs):
         self._raw_init(*args, **kwargs)
-        layers = self.sublayers(include_sublayers=True)
+        layers = self.sublayers(include_self=False)
         for layer in layers:
             if isinstance(layer, BasicLSTMCell):
                 layer._forget_bias.stop_gradient = False
