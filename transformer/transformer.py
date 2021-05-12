@@ -58,7 +58,7 @@ class PrePostProcessLayer(Layer):
                 self.functors.append(
                     self.add_sublayer(
                         "layer_norm_%d" % len(
-                            self.sublayers(include_sublayers=False)),
+                            self.sublayers(include_self=True)),
                         LayerNorm(
                             normalized_shape=d_model,
                             param_attr=fluid.ParamAttr(
